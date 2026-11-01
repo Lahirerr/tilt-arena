@@ -1,0 +1,16 @@
+{
+  "name": "tilt-arena",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "bun run --filter '@tilt/server' --filter '@tilt/web' dev",
+    "dev:server": "bun run --filter '@tilt/server' dev",
+    "dev:web": "bun run --filter '@tilt/web' dev",
+    "build:web": "bun run --filter '@tilt/web' build",
+    "start:server": "bun run --filter '@tilt/server' start",
+    "typecheck": "bun run --filter '*' typecheck"
+  }
+}
