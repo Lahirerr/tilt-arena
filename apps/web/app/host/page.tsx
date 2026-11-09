@@ -132,7 +132,8 @@ export default function HostPage() {
       clearInterval(botTimer);
       clearInterval(uiTimer);
       window.removeEventListener("keydown", onKey);
-      ws.onclose = null;
+      // detach first: closing a still-CONNECTING socket fires "error" (StrictMode dev remount)
+      ws.onerror = ws.onclose = ws.onmessage = null;
       ws.close();
     };
   }, []);

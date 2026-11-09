@@ -9,6 +9,7 @@
     "dev": "bun run --filter '@tilt/server' --filter '@tilt/web' dev",
     "dev:server": "bun run --filter '@tilt/server' dev",
     "dev:web": "bun run --filter '@tilt/web' dev",
+    "dev:tunnel": "bash scripts/tunnel.sh",
     "build:web": "bun run --filter '@tilt/web' build",
     "start:server": "bun run --filter '@tilt/server' start",
     "typecheck": "bun run --filter '*' typecheck"

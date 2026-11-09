@@ -41,19 +41,13 @@ bun run dev          # รันทั้ง server (:3001) และ web (:3000
 
 ### ลองกับมือถือจริง
 
-เซ็นเซอร์มือถือใช้ได้เฉพาะ **HTTPS** (iOS เข้มงวดสุด) วิธีง่ายสุดคือเปิด tunnel 2 ตัว:
+เซ็นเซอร์มือถือใช้ได้เฉพาะ **HTTPS** (iOS เข้มงวดสุด) ต้องมี `cloudflared` (`brew install cloudflared`) แล้วรันคำสั่งเดียว:
 
 ```bash
-# terminal 1
-bun run dev
-# terminal 2  (server)
-cloudflared tunnel --url http://localhost:3001
-# terminal 3  (web) ใส่ URL ของ server จาก terminal 2
-NEXT_PUBLIC_WS_URL=wss://<server-tunnel>.trycloudflare.com/ws bun run dev:web
-cloudflared tunnel --url http://localhost:3000
+bun run dev:tunnel
 ```
 
-แล้วเปิด `https://<web-tunnel>.trycloudflare.com/host` บนจอใหญ่ มือถือสแกน QR ได้เลย
+สคริปต์จะเปิด server, web และ cloudflared tunnel ให้ทั้งสองตัว ตั้ง `NEXT_PUBLIC_WS_URL` ให้อัตโนมัติ แล้วพิมพ์ลิงก์ `https://<web-tunnel>.trycloudflare.com/host` ให้เปิดบนจอใหญ่ มือถือสแกน QR ได้เลย กด Ctrl+C เพื่อปิดทั้งหมด (URL ของ tunnel จะเปลี่ยนทุกครั้งที่รันใหม่)
 
 > ถ้าเปิดผ่าน IP ในวง LAN (http) ก็เล่นได้ แต่มือถือจะสลับไปใช้ **จอยสัมผัส** แทนการเอียงอัตโนมัติ
 
