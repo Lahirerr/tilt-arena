@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
 import { PLAYER_COLORS, type HostToServer, type ServerToHost } from "@tilt/shared";
-import { Game, type Phase } from "@/lib/game";
+import { Game, type FxEvent, type Phase } from "@/lib/game";
+import { Sfx } from "@/lib/sfx";
 import { send, wsUrl } from "@/lib/socket";
 
 interface UiPlayer {
@@ -26,14 +27,38 @@ export default function HostPage() {
   const [phase, setPhase] = useState<Phase>("lobby");
   const [players, setPlayers] = useState<UiPlayer[]>([]);
   const [winner, setWinner] = useState<string | null>(null);
+  const [muted, setMuted] = useState(false);
 
   // ---- connect + game loop ----
   useEffect(() => {
+    const sfx = new Sfx();
+    setMuted(sfx.muted);
+    const buzz = (id: string, ms: number) => {
+      if (!id.startsWith("bot-")) send(wsRef.current, { t: "buzz", id, ms: Math.round(ms) } satisfies HostToServer);
+    };
+    const onFx = (e: FxEvent) => {
+      switch (e.type) {
+        case "hit":
+          sfx.hit(e.strength);
+          buzz(e.a, 25 + 45 * e.strength);
+          buzz(e.b, 25 + 45 * e.strength);
+          break;
+        case "dash":
+          sfx.dash(); // the phone already buzzes itself on dash
+          if (!e.id.startsWith("bot-")) send(wsRef.current, { t: "cooldown", id: e.id, ms: Math.round(e.cooldown * 1000) } satisfies HostToServer);
+          break;
+        case "fall": sfx.fall(); break; // ...and on "out" / "winner" status
+        case "win": sfx.win(); break;
+        case "count": sfx.count(e.n); break;
+        case "shrink": sfx.shrink(); break;
+      }
+    };
+
     const game = new Game((id, status, text, vip) => {
       if (id.startsWith("bot-")) return;
       const msg: HostToServer = { t: "status", id, status, text, vip };
       send(wsRef.current, msg);
-    });
+    }, onFx);
     gameRef.current = game;
 
     const ws = new WebSocket(wsUrl({ role: "host" }));
@@ -119,6 +144,8 @@ export default function HostPage() {
     // keyboard: Space/Enter = start, B = add bot (handy for testing alone)
     let botN = 0;
     const onKey = (e: KeyboardEvent) => {
+      sfx.unlock();
+      if (e.code === "KeyM") setMuted(sfx.toggleMute());
       if (e.code === "Space" || e.code === "Enter") game.requestStart();
       if (e.code === "KeyB" && game.phase === "lobby" && game.balls.size < 8) {
         botN++;
@@ -126,12 +153,16 @@ export default function HostPage() {
       }
     };
     window.addEventListener("keydown", onKey);
+    // audio stays locked until the big screen gets a click/tap or key press
+    const unlock = () => sfx.unlock();
+    window.addEventListener("pointerdown", unlock);
 
     return () => {
       cancelAnimationFrame(raf);
       clearInterval(botTimer);
       clearInterval(uiTimer);
       window.removeEventListener("keydown", onKey);
+      window.removeEventListener("pointerdown", unlock);
       // detach first: closing a still-CONNECTING socket fires "error" (StrictMode dev remount)
       ws.onerror = ws.onclose = ws.onmessage = null;
       ws.close();
@@ -191,6 +222,7 @@ export default function HostPage() {
                 ? "รอผู้เล่น… (กด B เพื่อเพิ่มบอทลองเล่น)"
                 : `${vip?.name} 👑 กดเริ่มจากมือถือได้เลย · หรือกด Space`}
             </p>
+            <p className="hint">{muted ? "🔇 ปิดเสียงอยู่ · กด M เพื่อเปิด" : "🔊 คลิกจอหนึ่งครั้งให้มีเสียง · กด M ปิดเสียง"}</p>
           </div>
         </div>
       )}

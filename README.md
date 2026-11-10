@@ -59,6 +59,13 @@ bun run dev:tunnel
 
 **Railway:** New Project → Deploy from GitHub repo → เลือก repo นี้ (มี `railway.json` ชี้ไปที่ Dockerfile แล้ว) → Settings → Networking → Generate Domain
 
+ตั้ง Variables ของ service ด้วย ไม่งั้นจะ build หรือต่อไม่ได้:
+
+| Variable | Value | ทำไม |
+| --- | --- | --- |
+| `RAILWAY_DOCKERFILE_PATH` | `apps/server/Dockerfile` | service ใหม่อาจไม่อ่าน `railway.json` แล้วไปใช้ Railpack ซึ่งหา start command ไม่เจอ |
+| `PORT` | `3001` | Railway ใส่ `PORT=8080` ให้เอง ต้องให้ตรงกับพอร์ตของ domain ที่ generate ไว้ |
+
 ได้ URL เช่น `https://tilt-arena-server.up.railway.app` → WebSocket คือ `wss://tilt-arena-server.up.railway.app/ws`
 
 **Fly.io / Render:** ใช้ Dockerfile เดียวกัน build จาก root ของ repo:
@@ -77,6 +84,20 @@ Import repo บน Vercel แล้วตั้งค่า:
 | Environment Variable | `NEXT_PUBLIC_WS_URL` = `wss://<server-domain>/ws` |
 
 Vercel อ่าน `bun.lock` ที่ root และติดตั้ง workspace ให้เอง
+
+> `NEXT_PUBLIC_WS_URL` ถูกฝังลงในโค้ดตอน build ถ้าเพิ่มหรือแก้ตัวแปรนี้ ต้อง redeploy ทุกครั้ง
+
+### 2b) Web → Netlify (แทน Vercel)
+
+มี `apps/web/netlify.toml` ให้แล้ว ใช้ Netlify CLI:
+
+```bash
+netlify sites:create --name <ชื่อ> --filter @tilt/web
+netlify env:set NEXT_PUBLIC_WS_URL wss://<server-domain>/ws --filter @tilt/web
+netlify deploy --build --prod --filter @tilt/web
+```
+
+ถ้า import repo ผ่านหน้าเว็บ: Base directory เว้นว่าง, Package directory = `apps/web`
 
 ## กติกา & การควบคุม
 

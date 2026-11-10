@@ -34,6 +34,8 @@ export default function PlayPage() {
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<InputMode>("tilt");
   const [viz, setViz] = useState({ x: 0, y: 0 });
+  // dash cooldown as reported by the big screen (it owns the real timer)
+  const [cd, setCd] = useState({ until: 0, ms: 0 });
 
   const wsRef = useRef<WebSocket | null>(null);
   const tiltRef = useRef({ x: 0, y: 0 });
@@ -133,12 +135,17 @@ export default function PlayPage() {
       if (msg.t === "welcome") {
         setMe(msg.player);
         setStage("in");
+      } else if (msg.t === "cooldown") {
+        setCd({ until: performance.now() + msg.ms, ms: msg.ms });
+      } else if (msg.t === "buzz") {
+        navigator.vibrate?.(msg.ms);
       } else if (msg.t === "status") {
         setStatus(msg.status);
         setText(msg.text);
         setVip(!!msg.vip);
         if (msg.status === "out") navigator.vibrate?.(250);
         if (msg.status === "winner") navigator.vibrate?.([80, 60, 80, 60, 200]);
+        if (msg.status !== "playing") setCd({ until: 0, ms: 0 }); // new round = dash ready
         if (msg.status === "playing") neutralRef.current = rawBetaRef.current || neutralRef.current;
       } else if (msg.t === "error") {
         setError(msg.reason);
@@ -152,6 +159,7 @@ export default function PlayPage() {
   }, [code, name]);
 
   const dash = () => {
+    if (performance.now() < cd.until) return;
     send(wsRef.current, { t: "dash" } satisfies PlayerToServer);
     navigator.vibrate?.(30);
   };
@@ -204,6 +212,8 @@ export default function PlayPage() {
     );
   }
 
+  // re-rendered ~30x/s by the tilt loop, so this stays live
+  const cdLeft = Math.max(0, cd.until - performance.now());
   const bg = status === "out" ? "#3a3d55" : status === "winner" ? "#f6c945" : me.color;
   const headline =
     status === "lobby" ? "พร้อม!" :
@@ -252,8 +262,9 @@ export default function PlayPage() {
       )}
 
       {(status === "playing" || status === "countdown") && (
-        <button className="dash-btn" onPointerDown={dash}>
-          DASH 💨
+        <button className={`dash-btn ${cdLeft > 0 ? "cooling" : ""}`} onPointerDown={dash}>
+          {cdLeft > 0 && <span className="cd-fill" style={{ transform: `scaleX(${cdLeft / cd.ms})` }} />}
+          <span className="cd-label">{cdLeft > 0 ? (cdLeft / 1000).toFixed(1) : "DASH 💨"}</span>
         </button>
       )}
 

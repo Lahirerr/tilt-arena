@@ -9,14 +9,15 @@ export const ROOM_CODE_LENGTH = 4;
 export const ROOM_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ";
 
 export const PLAYER_COLORS = [
-  "#ff4d6d",
-  "#3bc9db",
-  "#ffd43b",
-  "#69db7c",
-  "#b197fc",
-  "#ff922b",
-  "#f783ac",
-  "#74c0fc",
+  // natural, vivid, close-to-home Thai (DDJoinJoy style); all must read on brown wood
+  "#e2574c", // chili coral
+  "#4a8fd6", // butterfly pea
+  "#f2c23a", // mango
+  "#5fb35a", // pandan
+  "#a173d6", // taro
+  "#f08a3c", // Thai tea
+  "#ee82a8", // pink milk
+  "#35b0a4", // jade
 ] as const;
 
 export type Role = "host" | "player";
@@ -51,20 +52,31 @@ export type ServerToHost =
   | { t: "start"; id: string };
 
 /* ---------- big screen -> server ---------- */
-export type HostToServer = {
-  t: "status";
-  id: string;
-  status: PlayerStatus;
-  /** short line to show on the phone, e.g. "3" or "You placed 2nd" */
-  text?: string;
-  /** the first player in the room may start the round from their phone */
-  vip?: boolean;
-};
+export type HostToServer =
+  | {
+      t: "status";
+      id: string;
+      status: PlayerStatus;
+      /** short line to show on the phone, e.g. "3" or "You placed 2nd" */
+      text?: string;
+      /** the first player in the room may start the round from their phone */
+      vip?: boolean;
+    }
+  /** vibrate one phone, e.g. when its ball gets hit */
+  | { t: "buzz"; id: string; ms: number }
+  /** dash accepted: grey out the phone button for ms */
+  | { t: "cooldown"; id: string; ms: number };
+
+/** cap so a bad host message can't buzz a phone for seconds */
+export const MAX_BUZZ_MS = 200;
+export const MAX_COOLDOWN_MS = 10_000;
 
 /* ---------- server -> phone ---------- */
 export type ServerToPlayer =
   | { t: "welcome"; player: PlayerInfo }
   | { t: "status"; status: PlayerStatus; text?: string; vip?: boolean }
+  | { t: "buzz"; ms: number }
+  | { t: "cooldown"; ms: number }
   | { t: "error"; reason: string };
 
 export function clamp(v: number, min: number, max: number) {

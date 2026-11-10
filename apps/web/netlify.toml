@@ -1,0 +1,5 @@
+# Netlify: base directory = repo root (bun workspaces), package directory = apps/web
+# NEXT_PUBLIC_WS_URL must be set in the site env before building (it's inlined at build time)
+[build]
+  command = "bun run build:web"
+  publish = "apps/web/.next"

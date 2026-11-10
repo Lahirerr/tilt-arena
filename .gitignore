@@ -9,3 +9,6 @@ apps/web/certificates
 apps/web/next-env.d.ts
 *.tsbuildinfo
 .vercel
+
+# Local Netlify folder
+.netlify

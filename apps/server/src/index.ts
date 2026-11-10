@@ -1,5 +1,7 @@
 import { Elysia, t } from "elysia";
 import {
+  MAX_BUZZ_MS,
+  MAX_COOLDOWN_MS,
   MAX_PLAYERS,
   PLAYER_COLORS,
   ROOM_ALPHABET,
@@ -140,9 +142,12 @@ const app = new Elysia()
 
       // host -> one player
       const msg = parse<HostToServer>(raw);
-      if (msg?.t !== "status") return;
+      if (!msg) return;
       const target = room.players.get(msg.id);
-      if (target) toPlayer(target.ws, { t: "status", status: msg.status, text: msg.text, vip: msg.vip });
+      if (!target) return;
+      if (msg.t === "status") toPlayer(target.ws, { t: "status", status: msg.status, text: msg.text, vip: msg.vip });
+      else if (msg.t === "buzz") toPlayer(target.ws, { t: "buzz", ms: clamp(Number(msg.ms) || 0, 0, MAX_BUZZ_MS) });
+      else if (msg.t === "cooldown") toPlayer(target.ws, { t: "cooldown", ms: clamp(Number(msg.ms) || 0, 0, MAX_COOLDOWN_MS) });
     },
 
     close(ws) {
