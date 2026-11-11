@@ -20,7 +20,7 @@ const BOUNCE = 0.9; // restitution: 1 = perfectly elastic, >1 adds energy on eve
 const KNOCK_BONUS = 0.35; // extra push for the ball that got hit, as a fraction of closing speed
 const KNOCK_MAX = 260; // px/s cap on that extra push so big hits don't launch anyone off the map
 const KNOCK_TIME = 0.15; // seconds the hit ball glides before steering takes over again
-const STEER = 2400; // px/s² the velocity moves toward tilt * MAX_SPEED: same for speeding up, braking and reversing
+const STEER = 4200; // px/s² the velocity moves toward tilt * MAX_SPEED: same for speeding up, braking and reversing
 const DASH_TIME = 1 / 6; // seconds of boosted glide: ~100px extra reach at full speed
 const DASH_COOLDOWN = 2.5; // seconds; the phone shows it on the button
 const COUNTDOWN = 3;

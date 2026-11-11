@@ -40,7 +40,9 @@ export type PlayerToServer =
   /** tilt in -1..1 on both axes (x: right, y: down/towards player) */
   | { t: "tilt"; x: number; y: number }
   | { t: "dash" }
-  | { t: "start" };
+  | { t: "start" }
+  /** latency probe: "server" is answered by the relay, "host" goes on to the big screen and back */
+  | { t: "ping"; n: number; to: "server" | "host" };
 
 /* ---------- server -> big screen ---------- */
 export type ServerToHost =
@@ -49,7 +51,8 @@ export type ServerToHost =
   | { t: "leave"; id: string }
   | { t: "tilt"; id: string; x: number; y: number }
   | { t: "dash"; id: string }
-  | { t: "start"; id: string };
+  | { t: "start"; id: string }
+  | { t: "ping"; id: string; n: number };
 
 /* ---------- big screen -> server ---------- */
 export type HostToServer =
@@ -65,7 +68,9 @@ export type HostToServer =
   /** vibrate one phone, e.g. when its ball gets hit */
   | { t: "buzz"; id: string; ms: number }
   /** dash accepted: grey out the phone button for ms */
-  | { t: "cooldown"; id: string; ms: number };
+  | { t: "cooldown"; id: string; ms: number }
+  /** echo of a phone's ping */
+  | { t: "pong"; id: string; n: number };
 
 /** cap so a bad host message can't buzz a phone for seconds */
 export const MAX_BUZZ_MS = 200;
@@ -77,6 +82,7 @@ export type ServerToPlayer =
   | { t: "status"; status: PlayerStatus; text?: string; vip?: boolean }
   | { t: "buzz"; ms: number }
   | { t: "cooldown"; ms: number }
+  | { t: "pong"; n: number; from: "server" | "host" }
   | { t: "error"; reason: string };
 
 export function clamp(v: number, min: number, max: number) {

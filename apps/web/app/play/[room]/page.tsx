@@ -36,12 +36,26 @@ export default function PlayPage() {
   const [viz, setViz] = useState({ x: 0, y: 0 });
   // dash cooldown as reported by the big screen (it owns the real timer)
   const [cd, setCd] = useState({ until: 0, ms: 0 });
+  // round-trip ms: phone<->server, and phone<->server<->big screen (null = no answer yet)
+  const [ping, setPing] = useState<{ server: number | null; host: number | null }>({ server: null, host: null });
 
   const wsRef = useRef<WebSocket | null>(null);
   const tiltRef = useRef({ x: 0, y: 0 });
   const neutralRef = useRef<number | null>(null); // resting front/back angle
   const rawBetaRef = useRef(0);
   const gotSensorRef = useRef(false);
+  const lastSentRef = useRef({ x: 9, y: 9, at: 0 });
+
+  /** send the latest tilt right away (not on the next timer tick), at most ~60x/s */
+  const pushTilt = (force = false) => {
+    const t = tiltRef.current, last = lastSentRef.current;
+    const now = performance.now();
+    if (!force && now - last.at < 16) return;
+    const changed = Math.abs(t.x - last.x) > 0.02 || Math.abs(t.y - last.y) > 0.02;
+    if (!changed && now - last.at < 250) return;
+    send(wsRef.current, { t: "tilt", x: +t.x.toFixed(3), y: +t.y.toFixed(3) } satisfies PlayerToServer);
+    lastSentRef.current = { x: t.x, y: t.y, at: now };
+  };
 
   useEffect(() => {
     try {
@@ -61,6 +75,7 @@ export default function PlayPage() {
         x: clamp(e.gamma / FULL_TILT_DEG, -1, 1),
         y: clamp((e.beta - neutralRef.current) / FULL_TILT_DEG, -1, 1),
       };
+      pushTilt();
     };
     window.addEventListener("deviceorientation", onOrient);
     // no readings after a moment (desktop, denied permission) -> on-screen joystick
@@ -73,23 +88,27 @@ export default function PlayPage() {
     };
   }, [stage, mode]);
 
-  // ---------- send tilt ~30x/s ----------
+  // ---------- backstop send + on-screen viz ~30x/s (real sends happen on each sensor/touch event) ----------
   useEffect(() => {
     if (stage !== "in") return;
-    let lastSent = { x: 9, y: 9 };
-    let lastAt = 0;
+    lastSentRef.current = { x: 9, y: 9, at: 0 };
     const id = setInterval(() => {
-      const t = tiltRef.current;
-      const now = performance.now();
-      const changed = Math.abs(t.x - lastSent.x) > 0.02 || Math.abs(t.y - lastSent.y) > 0.02;
-      if (changed || now - lastAt > 250) {
-        const msg: PlayerToServer = { t: "tilt", x: +t.x.toFixed(3), y: +t.y.toFixed(3) };
-        send(wsRef.current, msg);
-        lastSent = { ...t };
-        lastAt = now;
-      }
-      setViz({ ...t });
+      pushTilt();
+      setViz({ ...tiltRef.current });
     }, 33);
+    return () => clearInterval(id);
+  }, [stage]);
+
+  // ---------- latency probe every 2s ----------
+  useEffect(() => {
+    if (stage !== "in") return;
+    const probe = () => {
+      const n = performance.now();
+      send(wsRef.current, { t: "ping", n, to: "server" } satisfies PlayerToServer);
+      send(wsRef.current, { t: "ping", n, to: "host" } satisfies PlayerToServer);
+    };
+    probe();
+    const id = setInterval(probe, 2000);
     return () => clearInterval(id);
   }, [stage]);
 
@@ -137,6 +156,9 @@ export default function PlayPage() {
         setStage("in");
       } else if (msg.t === "cooldown") {
         setCd({ until: performance.now() + msg.ms, ms: msg.ms });
+      } else if (msg.t === "pong") {
+        const rtt = Math.round(performance.now() - msg.n);
+        setPing((p) => ({ ...p, [msg.from]: rtt }));
       } else if (msg.t === "buzz") {
         navigator.vibrate?.(msg.ms);
       } else if (msg.t === "status") {
@@ -171,6 +193,7 @@ export default function PlayPage() {
     if (!el) return;
     if (e.type === "pointerup" || e.type === "pointercancel") {
       tiltRef.current = { x: 0, y: 0 };
+      pushTilt(true);
       return;
     }
     if (e.type === "pointerdown") el.setPointerCapture(e.pointerId);
@@ -181,6 +204,7 @@ export default function PlayPage() {
       x: clamp((e.clientX - (r.left + r.width / 2)) / half, -1, 1),
       y: clamp((e.clientY - (r.top + r.height / 2)) / half, -1, 1),
     };
+    pushTilt();
   };
 
   // ---------- UI ----------
@@ -226,6 +250,10 @@ export default function PlayPage() {
       <div className="pad-top">
         <span>{me.name}{vip ? " 👑" : ""}</span>
         <span>ห้อง {code}</span>
+      </div>
+      <div className="ping" title="เวลาไป-กลับ: มือถือ↔เซิร์ฟ / มือถือ↔เซิร์ฟ↔จอใหญ่">
+        <span className={pingClass(ping.server)}>เซิร์ฟ {ping.server ?? "–"}</span>
+        <span className={pingClass(ping.host)}>จอใหญ่ {ping.host ?? "–"} ms</span>
       </div>
 
       <div className="pad-status">
@@ -284,4 +312,10 @@ export default function PlayPage() {
       </div>
     </main>
   );
+}
+
+/** green < 80ms, amber < 200ms, red above: round trip, so one-way is about half */
+function pingClass(ms: number | null) {
+  if (ms == null) return "";
+  return ms < 80 ? "good" : ms < 200 ? "ok" : "bad";
 }

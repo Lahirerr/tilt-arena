@@ -136,6 +136,12 @@ const app = new Elysia()
           case "start":
             toHost(room, { t: msg.t, id: ws.id });
             break;
+          case "ping": {
+            const n = Number(msg.n) || 0;
+            if (msg.to === "host") toHost(room, { t: "ping", id: ws.id, n });
+            else toPlayer(ws, { t: "pong", n, from: "server" });
+            break;
+          }
         }
         return;
       }
@@ -148,6 +154,7 @@ const app = new Elysia()
       if (msg.t === "status") toPlayer(target.ws, { t: "status", status: msg.status, text: msg.text, vip: msg.vip });
       else if (msg.t === "buzz") toPlayer(target.ws, { t: "buzz", ms: clamp(Number(msg.ms) || 0, 0, MAX_BUZZ_MS) });
       else if (msg.t === "cooldown") toPlayer(target.ws, { t: "cooldown", ms: clamp(Number(msg.ms) || 0, 0, MAX_COOLDOWN_MS) });
+      else if (msg.t === "pong") toPlayer(target.ws, { t: "pong", n: Number(msg.n) || 0, from: "host" });
     },
 
     close(ws) {

@@ -90,6 +90,9 @@ export default function HostPage() {
         case "start":
           game.requestStart(msg.id);
           break;
+        case "ping":
+          send(ws, { t: "pong", id: msg.id, n: msg.n } satisfies HostToServer);
+          break;
       }
     };
 

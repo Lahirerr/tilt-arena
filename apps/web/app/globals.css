@@ -104,6 +104,12 @@ input {
   gap: 14px; user-select: none; -webkit-user-select: none; touch-action: none; transition: background 0.3s;
 }
 .pad-top { display: flex; justify-content: space-between; align-items: center; font-weight: 800; }
+.ping { display: flex; justify-content: flex-end; gap: 10px; margin-top: 4px; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; opacity: .9; }
+.ping span { padding: 2px 8px; border-radius: 999px; background: rgba(0,0,0,.28); color: #fff; }
+.ping span.good::before, .ping span.ok::before, .ping span.bad::before { content: "●"; margin-right: 4px; }
+.ping span.good::before { color: #7ee07a; }
+.ping span.ok::before { color: #ffd34d; }
+.ping span.bad::before { color: #ff6b5e; }
 .pad-status { flex: 1; display: grid; place-items: center; text-align: center; }
 .pad-status .big { font-size: 64px; font-weight: 900; line-height: 1.05; }
 .pad-status .small { font-size: 18px; opacity: 0.85; margin-top: 8px; }
