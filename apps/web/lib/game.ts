@@ -1,4 +1,4 @@
-import type { PlayerInfo, PlayerStatus } from "@tilt/shared";
+import { PLAYER_COLORS, type PlayerInfo, type PlayerStatus } from "@tilt/shared";
 import { INK, RING_SECTORS, mix, paintBall, paintDirt, scratchRing } from "./paint";
 
 /**
@@ -35,6 +35,10 @@ const HIT_MIN = 120; // closing speed below this is just resting contact, no jui
 const HIT_FULL = 900; // closing speed that counts as a full-strength hit
 const MAX_PARTICLES = 240;
 const SCENE_URL = "/ta-scene-schoolyard.webp";
+// glass marbles from assets/src/ta_art.py, same order as PLAYER_COLORS; cropped to the sphere + 2px outline
+const MARBLE_NAMES = ["coral", "pea", "mango", "pandan", "taro", "thaitea", "pinkmilk", "jade"];
+const MARBLE_CROP = 274 / 270; // image size / sphere diameter
+const MARBLE_RES = 3; // bitmap px per world unit, so squash and big screens stay crisp
 
 export type Phase = "lobby" | "countdown" | "playing" | "result";
 
@@ -114,6 +118,8 @@ export class Game {
   private scene: HTMLImageElement | null = null;
   private ring = scratchRing();
   private ballArt = new Map<string, ReturnType<typeof paintBall>>();
+  /** marble SVG rasterised once per colour; null while it loads (painted ball shows meanwhile) */
+  private marbleArt = new Map<string, { canvas: HTMLCanvasElement; size: number } | null>();
   /** prefers-reduced-motion: keep the sparks, tone down the camera */
   private shakeScale =
     typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ? 0.25 : 1;
@@ -541,6 +547,38 @@ export class Game {
     ctx.restore();
   }
 
+  /** start loading this colour's marble SVG once; returns it when ready, else null */
+  private loadMarble(color: string) {
+    if (this.marbleArt.has(color)) return this.marbleArt.get(color) ?? null;
+    this.marbleArt.set(color, null);
+    const name = MARBLE_NAMES[PLAYER_COLORS.indexOf(color as (typeof PLAYER_COLORS)[number])];
+    if (!name) return null; // not a player colour: keep the painted ball
+    const img = new Image();
+    img.onload = () => {
+      const size = BALL_R * 2 * MARBLE_CROP;
+      const c = document.createElement("canvas");
+      c.width = c.height = Math.ceil(size * MARBLE_RES);
+      const g = c.getContext("2d")!;
+      // clear glass vanishes on the bright yard: put a body of the player's colour behind it
+      // (denser at the rim like real tinted glass) so every marble reads from across the room
+      const half = c.width / 2, rr = half / MARBLE_CROP;
+      const body = g.createRadialGradient(half * 0.85, half * 0.8, rr * 0.1, half, half, rr);
+      body.addColorStop(0, mix(color, "#ffffff", 0.25));
+      body.addColorStop(0.7, color);
+      body.addColorStop(1, mix(color, "#000000", 0.35));
+      g.globalAlpha = 0.72;
+      g.fillStyle = body;
+      g.beginPath();
+      g.arc(half, half, rr - 1, 0, Math.PI * 2);
+      g.fill();
+      g.globalAlpha = 1;
+      g.drawImage(img, 0, 0, c.width, c.height);
+      this.marbleArt.set(color, { canvas: c, size });
+    };
+    img.src = `/marbles/${name}.svg`;
+    return null;
+  }
+
   render(ctx: CanvasRenderingContext2D, w: number, h: number, now: number) {
     const s = Math.min(w, h) / WORLD;
     const ox = (w - WORLD * s) / 2;
@@ -628,8 +666,12 @@ export class Game {
         ctx.stroke();
         ctx.globalAlpha = 1 - b.fall;
       }
-      let art = this.ballArt.get(b.info.color);
-      if (!art) this.ballArt.set(b.info.color, (art = paintBall(b.info.color, BALL_R)));
+      let art: { canvas: HTMLCanvasElement; size: number } | null | undefined =
+        this.marbleArt.get(b.info.color) ?? this.loadMarble(b.info.color);
+      if (!art) {
+        art = this.ballArt.get(b.info.color);
+        if (!art) this.ballArt.set(b.info.color, (art = paintBall(b.info.color, BALL_R)));
+      }
       // squash along sqA only: rotate in, scale, rotate back so the highlight stays top-left
       const k = this.squashNow(b);
       ctx.save();

@@ -136,6 +136,18 @@ def marble(name, color, seed):
     return svg(W, H, defs, f'<g id="ta-marble-{name}">{body}</g>')
 
 
+GAME_OUT = os.path.join(ROOT, "apps", "web", "public", "marbles")
+
+
+def marble_game(name, color, seed):
+    """Same art as marble(), for the host canvas: no ground shadow/glow (the game draws its own,
+    unsquashed) and cropped to the sphere + 2px for the outline, so it maps straight onto BALL_R."""
+    import re
+    s = marble(name, color, seed)
+    s = re.sub(r'<ellipse id="L-(shadow|ground-glow)"[^>]*/>', "", s)
+    return s.replace('width="340" height="340" viewBox="0 0 340 340"', 'width="274" height="274" viewBox="28 23 274 274"')
+
+
 def icon_dash(color="#e2574c"):
     """Tutorial / button icon: the marble shooting forward with gold motion marks behind it."""
     W = H = 240
@@ -270,6 +282,8 @@ if __name__ == "__main__":
         if only and name not in only:
             continue
         open(os.path.join(OUT, f"ta-marble-{name}.svg"), "w").write(marble(name, col, 100 + i))
+        os.makedirs(GAME_OUT, exist_ok=True)
+        open(os.path.join(GAME_OUT, f"{name}.svg"), "w").write(marble_game(name, col, 100 + i))
     open(os.path.join(OUT, "ta-icon-dash.svg"), "w").write(icon_dash())
     open(os.path.join(OUT, "ta-icon-tilt.svg"), "w").write(icon_tilt())
     open(os.path.join(OUT, "ta-ticket-winner.svg"), "w").write(ticket_winner())
