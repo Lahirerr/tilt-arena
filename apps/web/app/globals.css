@@ -90,11 +90,41 @@ input {
 .chip { display: flex; align-items: center; gap: 8px; background: #ffffff12; box-shadow: inset 0 0 0 1px #ffffff1c; padding: 8px 14px; border-radius: 999px; font-weight: 700; font-size: 18px; }
 .chip.vip::after { content: "👑"; }
 .hint { color: var(--muted); margin-top: 24px; font-size: 18px; }
-.result-banner {
-  position: absolute; left: 50%; top: 12%; transform: translateX(-50%);
-  background: var(--paper); color: var(--paper-ink); padding: 18px 32px; border-radius: 10px;
-  box-shadow: inset 0 0 0 2px var(--paper-line), 0 14px 30px #0009; font-size: clamp(28px, 4vw, 52px); font-weight: 900; text-align: center;
+.how-to-play {
+  position: absolute; left: 50%; bottom: 4vh; transform: translateX(-50%);
+  display: flex; gap: clamp(14px, 2.5vw, 36px); margin: 0; padding: 0; list-style: none;
 }
+.how-to-play li {
+  position: relative; width: clamp(150px, 15vw, 220px); padding: 8px 14px 14px; border-radius: 16px; text-align: center;
+  background: #ffffff0d; box-shadow: inset 0 0 0 1px #ffffff1a;
+}
+.how-to-play img { display: block; width: clamp(84px, 8vw, 120px); height: auto; margin: 0 auto 2px; }
+.how-to-play .step {
+  position: absolute; left: 10px; top: 10px; width: 28px; height: 28px; border-radius: 50%;
+  display: grid; place-items: center; font-weight: 900; font-size: 16px;
+  background: var(--accent-2); color: var(--paper-ink);
+}
+.how-to-play b { display: block; font-size: clamp(16px, 1.4vw, 22px); font-weight: 900; }
+.how-to-play small { display: block; color: var(--muted); font-size: clamp(12px, 1vw, 15px); margin-top: 2px; line-height: 1.35; }
+/* leave room under the QR + code for the how-to strip */
+.lobby { padding-bottom: calc(4vh + clamp(190px, 17vw, 250px)); }
+@media (max-height: 760px) { .how-to-play { display: none; } .lobby { padding-bottom: 32px; } }
+.result-banner {
+  position: absolute; left: 50%; top: 6%; transform: translateX(-50%);
+  width: clamp(320px, 36vw, 580px); aspect-ratio: 460 / 340;
+  background: url(/ui/ta-ticket-winner.svg) center / contain no-repeat;
+  filter: drop-shadow(0 14px 24px #0007);
+  animation: ticket-in .45s cubic-bezier(.2, 1.6, .4, 1) both;
+}
+/* text sits between the card's two dotted lines (y 196 and 246 of 340) */
+.result-text {
+  position: absolute; left: 14%; right: 14%; top: 49%; height: 25%;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  color: var(--paper-ink); text-align: center; line-height: 1.05;
+}
+.result-text b { font-size: clamp(22px, 3vw, 46px); font-weight: 900; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.result-text span { font-size: clamp(14px, 1.5vw, 22px); font-weight: 800; opacity: .75; }
+@keyframes ticket-in { from { transform: translateX(-50%) translateY(-30px) rotate(-4deg) scale(.85); opacity: 0; } }
 @media (max-width: 760px) { .lobby { flex-direction: column; gap: 24px; } }
 
 /* ---------- phone controller ---------- */
@@ -120,7 +150,11 @@ input {
 .dash-btn { position: relative; overflow: hidden; }
 .dash-btn.cooling { background: #f6efe28c; color: #4a342699; box-shadow: 0 2px 0 #0004; transform: translateY(6px); }
 .dash-btn .cd-fill { position: absolute; inset: 0; background: #0003; transform-origin: left; }
-.dash-btn .cd-label { position: relative; font-variant-numeric: tabular-nums; }
+.dash-btn .cd-label { position: relative; font-variant-numeric: tabular-nums; display: inline-flex; align-items: center; gap: 10px; }
+.dash-btn .dash-icon { width: 1.6em; height: 1.6em; margin-left: -.3em; pointer-events: none; }
+.dash-btn.cooling .dash-icon { opacity: .4; filter: grayscale(1); }
+.how-to { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 18px; font-size: 15px; font-weight: 700; text-align: left; line-height: 1.35; }
+.how-to img { width: 76px; height: 76px; flex: none; }
 .row { display: flex; gap: 10px; }
 .row button { flex: 1; background: #0004; color: var(--text); box-shadow: inset 0 0 0 1px #fff3; }
 .joy { width: 100%; height: 30vh; border-radius: 28px; background: #0003; position: relative; touch-action: none; }

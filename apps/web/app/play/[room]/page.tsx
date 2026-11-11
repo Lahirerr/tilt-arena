@@ -262,6 +262,12 @@ export default function PlayPage() {
           <div className="small">
             {status === "lobby" ? (vip ? "คุณเป็นหัวห้อง กดเริ่มได้เลย" : "รอหัวห้องกดเริ่ม…") : text ?? ""}
           </div>
+          {status === "lobby" && mode === "tilt" && (
+            <div className="how-to">
+              <img src="/ui/ta-icon-tilt.svg" alt="" draggable={false} />
+              <span>เอียงมือถือ ลูกแก้วกลิ้งตาม<br />ดันคนอื่นตกวง!</span>
+            </div>
+          )}
           {mode === "tilt" && (
             <div className="tilt-viz">
               <i style={{ transform: `translate(${viz.x * 52}px, ${viz.y * 52}px)` }} />
@@ -292,7 +298,10 @@ export default function PlayPage() {
       {(status === "playing" || status === "countdown") && (
         <button className={`dash-btn ${cdLeft > 0 ? "cooling" : ""}`} onPointerDown={dash}>
           {cdLeft > 0 && <span className="cd-fill" style={{ transform: `scaleX(${cdLeft / cd.ms})` }} />}
-          <span className="cd-label">{cdLeft > 0 ? (cdLeft / 1000).toFixed(1) : "DASH 💨"}</span>
+          <span className="cd-label">
+            <img className="dash-icon" src="/ui/ta-icon-dash.svg" alt="" draggable={false} />
+            {cdLeft > 0 ? (cdLeft / 1000).toFixed(1) : "DASH"}
+          </span>
         </button>
       )}
 

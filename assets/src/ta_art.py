@@ -275,6 +275,46 @@ def ticket_winner():
     return svg(W, H, defs, f'<g id="ta-ticket-winner">{"".join(b)}</g>')
 
 
+
+def icon_out():
+    """Tutorial icon: a marble knocked across the chalk ring line, another marble inside that hit it,
+    gold impact marks between them."""
+    W = H = 240
+    rnd = random.Random(71)
+    defs = ""
+    b = []
+    # chalk ring: an arc of a big circle, scratched (several thin overlapping strokes)
+    RC, ccx, ccy = 150, 10, 122
+    for k in range(5):
+        a0, a1 = math.radians(-40 + rnd.uniform(-3, 3)), math.radians(40 + rnd.uniform(-3, 3))
+        arc = ellipse_pts(ccx, ccy, RC + rnd.uniform(-2.5, 2.5), RC + rnd.uniform(-2.5, 2.5), 14, a0, a1)
+        b.append(f'<path id="L-ring" d="{smooth_path(wobble(arc, 0.8, rnd, False), False)}" stroke="#efe4cc" stroke-width="{rnd.uniform(2, 4.5):.1f}" stroke-linecap="round" fill="none" opacity="{rnd.uniform(.45, .8):.2f}"/>')
+    # the hitter, inside the ring
+    d1, b1 = marble_body("#4a8fd6", 88, 104, 30, 72, "oa")
+    # the one knocked out, beyond the line, a little lower-right
+    d2, b2 = marble_body("#e2574c", 200, 140, 30, 73, "ob")
+    defs += d1 + d2
+    gold = "#e8c45a"
+    marks = []
+    # streaks trailing the knocked marble back toward the hit
+    ang = math.atan2(140 - 104, 200 - 88)
+    ux, uy = math.cos(ang), math.sin(ang)
+    nx, ny = -uy, ux
+    for off, L, w in [(-14, 22, 6), (2, 30, 7), (17, 18, 6)]:
+        sx, sy = 200 - ux * 36 + nx * off, 140 - uy * 36 + ny * off
+        marks.append(f'<path d="M{sx:.1f},{sy:.1f} L{sx - ux * L:.1f},{sy - uy * L:.1f}" stroke="{gold}" stroke-width="{w}" stroke-linecap="round" opacity=".95"/>')
+    # impact burst at the contact point
+    cx, cy = 126, 112
+    for i in range(5):
+        a = math.radians(-120 + i * 30)
+        r0, r1 = 8, 17 + (i % 2) * 6
+        marks.append(f'<path d="M{cx + math.cos(a) * r0:.1f},{cy + math.sin(a) * r0:.1f} L{cx + math.cos(a) * r1:.1f},{cy + math.sin(a) * r1:.1f}" stroke="{gold}" stroke-width="4.5" stroke-linecap="round"/>')
+    b.append(f'<g id="L-motion">{"".join(marks)}</g>')
+    b.append(b1.replace('id="L-', 'id="L-hitter-'))
+    b.append(b2.replace('id="L-', 'id="L-out-'))
+    return svg(W, H, defs, f'<g id="ta-icon-out">{"".join(b)}</g>')
+
+
 if __name__ == "__main__":
     os.makedirs(OUT, exist_ok=True)
     only = sys.argv[1:]  # e.g. coral  -> just that marble
@@ -287,4 +327,10 @@ if __name__ == "__main__":
     open(os.path.join(OUT, "ta-icon-dash.svg"), "w").write(icon_dash())
     open(os.path.join(OUT, "ta-icon-tilt.svg"), "w").write(icon_tilt())
     open(os.path.join(OUT, "ta-ticket-winner.svg"), "w").write(ticket_winner())
+    open(os.path.join(OUT, "ta-icon-out.svg"), "w").write(icon_out())
+    # UI art the web app serves as-is (phone dash button, phone lobby hint, host winner card)
+    ui = os.path.join(ROOT, "apps", "web", "public", "ui")
+    os.makedirs(ui, exist_ok=True)
+    for f in ("ta-icon-dash.svg", "ta-icon-tilt.svg", "ta-icon-out.svg", "ta-ticket-winner.svg"):
+        open(os.path.join(ui, f), "w").write(open(os.path.join(OUT, f)).read())
     print("wrote", OUT)

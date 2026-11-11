@@ -3,6 +3,12 @@
 import { useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
 import { PLAYER_COLORS, type HostToServer, type ServerToHost } from "@tilt/shared";
+
+const HOW_TO = [
+  { icon: "ta-icon-tilt", title: "เอียงมือถือ", text: "ลูกแก้วกลิ้งไปตามทางที่เอียง" },
+  { icon: "ta-icon-dash", title: "กด DASH", text: "พุ่งชนแรงๆ แล้วรอชาร์จใหม่" },
+  { icon: "ta-icon-out", title: "ดันคนอื่นตกวง", text: "คนสุดท้ายที่เหลือในวงชนะ" },
+];
 import { Game, type FxEvent, type Phase } from "@/lib/game";
 import { Sfx } from "@/lib/sfx";
 import { send, wsUrl } from "@/lib/socket";
@@ -194,7 +200,19 @@ export default function HostPage() {
       )}
 
       {phase === "result" && (
-        <div className="result-banner">{winner ? `🏆 ${winner} ชนะ!` : "จบรอบ!"}</div>
+        // winner card art (assets/svg/ta-ticket-winner.svg); the text is live, sitting on its dotted lines
+        <div className="result-banner">
+          <div className="result-text">
+            {winner ? (
+              <>
+                <b>{winner}</b>
+                <span>ชนะรอบนี้!</span>
+              </>
+            ) : (
+              <b>จบรอบ!</b>
+            )}
+          </div>
+        </div>
       )}
 
       {phase === "lobby" && (
@@ -227,6 +245,18 @@ export default function HostPage() {
             </p>
             <p className="hint">{muted ? "🔇 ปิดเสียงอยู่ · กด M เพื่อเปิด" : "🔊 คลิกจอหนึ่งครั้งให้มีเสียง · กด M ปิดเสียง"}</p>
           </div>
+
+          {/* how to play: the tutorial icons from assets/svg (ta-icon-*), text stays live */}
+          <ol className="how-to-play">
+            {HOW_TO.map((s, i) => (
+              <li key={s.icon}>
+                <img src={`/ui/${s.icon}.svg`} alt="" draggable={false} />
+                <span className="step">{i + 1}</span>
+                <b>{s.title}</b>
+                <small>{s.text}</small>
+              </li>
+            ))}
+          </ol>
         </div>
       )}
     </main>

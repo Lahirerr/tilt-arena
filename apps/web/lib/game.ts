@@ -39,6 +39,15 @@ const SCENE_URL = "/ta-scene-schoolyard.webp";
 const MARBLE_NAMES = ["coral", "pea", "mango", "pandan", "taro", "thaitea", "pinkmilk", "jade"];
 const MARBLE_CROP = 274 / 270; // image size / sphere diameter
 const MARBLE_RES = 3; // bitmap px per world unit, so squash and big screens stay crisp
+const DASH_GOLD = "#e8c45a"; // dash streaks: same golds as ta-icon-dash.svg
+const DASH_GOLD_LIGHT = "#fff4c8";
+const STREAK_TIME = 0.35; // seconds the gold streaks stay: longer than the 1/6 s push so eyes catch them
+
+/** 1 right after a dash, fading to 0 over STREAK_TIME (dashCd starts at DASH_COOLDOWN on each dash) */
+function dashStreak(b: { dashCd: number }) {
+  if (b.dashCd <= 0) return 0;
+  return Math.max(0, 1 - (DASH_COOLDOWN - b.dashCd) / STREAK_TIME);
+}
 
 export type Phase = "lobby" | "countdown" | "playing" | "result";
 
@@ -547,6 +556,47 @@ export class Game {
     ctx.restore();
   }
 
+  /**
+   * Dash: three gold speed streaks trailing behind the marble, same marks as the dash icon
+   * (assets/svg/ta-icon-dash.svg). They pop out at full length and shrink back as the dash ends.
+   */
+  private drawDashStreaks(ctx: CanvasRenderingContext2D, b: Ball, r: number) {
+    const sp = Math.hypot(b.vx, b.vy);
+    if (sp < 1) return;
+    const ux = b.vx / sp, uy = b.vy / sp; // forward
+    const nx = -uy, ny = ux; // sideways
+    const e = dashStreak(b); // 1 -> 0
+    const fade = 1 - b.fall;
+    ctx.save();
+    ctx.lineCap = "round";
+    // [sideways offset, length, width] in ball radii, from the icon
+    for (const [off, len, w] of [[-0.52, 1.7, 0.2], [0.03, 2.3, 0.24], [0.55, 1.5, 0.2]]) {
+      const o = off * r;
+      // start just behind the ball's edge at that offset
+      const edge = Math.sqrt(Math.max(0, r * r - o * o)) + r * 0.1;
+      const sx = b.x + nx * o - ux * edge, sy = b.y + ny * o - uy * edge;
+      const L = len * r * (0.5 + 0.5 * e);
+      const ex = sx - ux * L, ey = sy - uy * L;
+      ctx.globalAlpha = 0.95 * Math.min(1, e * 1.6) * fade;
+      ctx.strokeStyle = DASH_GOLD;
+      ctx.lineWidth = w * r;
+      ctx.beginPath();
+      ctx.moveTo(sx, sy);
+      ctx.lineTo(ex, ey);
+      ctx.stroke();
+      // lighter core on the half nearest the ball
+      ctx.globalAlpha *= 0.6;
+      ctx.strokeStyle = DASH_GOLD_LIGHT;
+      ctx.lineWidth = w * r * 0.35;
+      ctx.beginPath();
+      ctx.moveTo(sx, sy);
+      ctx.lineTo(sx - ux * L * 0.5, sy - uy * L * 0.5);
+      ctx.stroke();
+    }
+    ctx.restore();
+    ctx.globalAlpha = fade;
+  }
+
   /** start loading this colour's marble SVG once; returns it when ready, else null */
   private loadMarble(color: string) {
     if (this.marbleArt.has(color)) return this.marbleArt.get(color) ?? null;
@@ -657,15 +707,7 @@ export class Game {
         ctx.ellipse(b.x + 6, b.y + 10, r * 0.98, r * 0.78, 0, 0, Math.PI * 2);
         ctx.fill();
       }
-      if (b.dashFx > 0) {
-        ctx.beginPath();
-        ctx.arc(b.x, b.y, r + 6 + 18 * (1 - b.dashFx), 0, Math.PI * 2);
-        ctx.lineWidth = 6 * b.dashFx;
-        ctx.strokeStyle = INK.cream;
-        ctx.globalAlpha = 0.7 * b.dashFx;
-        ctx.stroke();
-        ctx.globalAlpha = 1 - b.fall;
-      }
+      if (dashStreak(b) > 0) this.drawDashStreaks(ctx, b, r);
       let art: { canvas: HTMLCanvasElement; size: number } | null | undefined =
         this.marbleArt.get(b.info.color) ?? this.loadMarble(b.info.color);
       if (!art) {
