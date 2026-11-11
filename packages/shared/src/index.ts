@@ -1,7 +1,15 @@
 /**
  * Shared contract between the big screen (host), the phones (players)
  * and the Elysia relay server. Every WebSocket message is one of these.
+ *
+ * Two layers (GAME_HUB.md §4):
+ * - hub layer: rooms, players, picking a game, results. The server understands these.
+ * - game layer: wrapped in { t: "game", d }. The server never looks inside, it only relays,
+ *   so adding a game never touches the server.
  */
+
+export * from "./games/tilt-arena";
+export * from "./sensors";
 
 export const MAX_PLAYERS = 8;
 export const ROOM_CODE_LENGTH = 4;
@@ -20,6 +28,10 @@ export const PLAYER_COLORS = [
   "#35b0a4", // jade
 ] as const;
 
+/** every game in the hub; add one here + one line in apps/web/hub/registry.ts */
+export type GameId = "tilt-arena";
+export const GAME_IDS: readonly GameId[] = ["tilt-arena"];
+
 export type Role = "host" | "player";
 
 export interface PlayerInfo {
@@ -28,19 +40,15 @@ export interface PlayerInfo {
   color: string;
 }
 
-export type PlayerStatus =
-  | "lobby" // waiting for the round to start
-  | "countdown" // 3-2-1
-  | "playing" // alive in the arena
-  | "out" // fell off this round
-  | "winner"; // last one standing
+/** which hub screen a phone should show; "playing" hands the phone to the game's Controller */
+export type HubScreen = "lobby" | "intro" | "playing" | "results" | "waiting";
 
-/* ---------- phone -> server ---------- */
+/* ---------- phone -> server (-> host with the sender's id added) ---------- */
 export type PlayerToServer =
-  /** tilt in -1..1 on both axes (x: right, y: down/towards player) */
-  | { t: "tilt"; x: number; y: number }
-  | { t: "dash" }
-  | { t: "start" }
+  | { t: "pick"; game: GameId } // VIP picks a game (or "play again" with the same one)
+  | { t: "ready" } // skip the intro
+  | { t: "menu" } // VIP: back to the hub lobby to choose another game
+  | { t: "game"; d: unknown } // game input (tilt, gesture, buttons); opaque to the server
   /** latency probe: "server" is answered by the relay, "host" goes on to the big screen and back */
   | { t: "ping"; n: number; to: "server" | "host" };
 
@@ -49,41 +57,28 @@ export type ServerToHost =
   | { t: "room"; code: string }
   | { t: "join"; player: PlayerInfo }
   | { t: "leave"; id: string }
-  | { t: "tilt"; id: string; x: number; y: number }
-  | { t: "dash"; id: string }
-  | { t: "start"; id: string }
+  | { t: "pick"; id: string; game: GameId }
+  | { t: "ready"; id: string }
+  | { t: "menu"; id: string }
+  | { t: "game"; id: string; d: unknown }
   | { t: "ping"; id: string; n: number };
 
-/* ---------- big screen -> server ---------- */
+/* ---------- big screen -> server -> phone(s) ---------- */
 export type HostToServer =
-  | {
-      t: "status";
-      id: string;
-      status: PlayerStatus;
-      /** short line to show on the phone, e.g. "3" or "You placed 2nd" */
-      text?: string;
-      /** the first player in the room may start the round from their phone */
-      vip?: boolean;
-    }
-  /** vibrate one phone, e.g. when its ball gets hit */
-  | { t: "buzz"; id: string; ms: number }
-  /** dash accepted: grey out the phone button for ms */
-  | { t: "cooldown"; id: string; ms: number }
-  /** echo of a phone's ping */
-  | { t: "pong"; id: string; n: number };
-
-/** cap so a bad host message can't buzz a phone for seconds */
-export const MAX_BUZZ_MS = 200;
-export const MAX_COOLDOWN_MS = 10_000;
+  | { t: "to"; id: string; d: ServerToPlayer } // one phone (secrets go ONLY this way)
+  | { t: "all"; d: ServerToPlayer }; // every phone in the room
 
 /* ---------- server -> phone ---------- */
 export type ServerToPlayer =
   | { t: "welcome"; player: PlayerInfo }
-  | { t: "status"; status: PlayerStatus; text?: string; vip?: boolean }
-  | { t: "buzz"; ms: number }
-  | { t: "cooldown"; ms: number }
+  | { t: "hub"; screen: HubScreen; vip: boolean; game?: GameId; text?: string; missing?: Partial<Record<GameId, number>> }
+  | { t: "game"; d: unknown }
   | { t: "pong"; n: number; from: "server" | "host" }
   | { t: "error"; reason: string };
+
+/** relay limits: one phone can't flood a room */
+export const MAX_MSG_BYTES = 2048;
+export const MAX_MSG_PER_SEC = 60;
 
 export function clamp(v: number, min: number, max: number) {
   return Math.min(max, Math.max(min, v));

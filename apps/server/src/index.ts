@@ -1,12 +1,11 @@
 import { Elysia, t } from "elysia";
 import {
-  MAX_BUZZ_MS,
-  MAX_COOLDOWN_MS,
+  MAX_MSG_BYTES,
+  MAX_MSG_PER_SEC,
   MAX_PLAYERS,
   PLAYER_COLORS,
   ROOM_ALPHABET,
   ROOM_CODE_LENGTH,
-  clamp,
   type HostToServer,
   type PlayerInfo,
   type PlayerToServer,
@@ -15,14 +14,16 @@ import {
 } from "@tilt/shared";
 
 /**
- * The server is only a relay + room registry.
- * All game logic (physics, who fell, who won) runs on the big screen.
+ * The server is only a room registry + relay (GAME_HUB.md §1.3).
+ * It knows nothing about any game: game input/output travels as opaque { t: "game", d }.
+ * All logic (physics, rules, who won) runs on the big screen.
  */
 
 interface Conn {
   id: string;
   send(data: string): unknown;
   close(): unknown;
+  subscribe(topic: string): unknown;
 }
 
 interface Room {
@@ -34,7 +35,10 @@ interface Room {
 const rooms = new Map<string, Room>();
 /** socket id -> where that socket belongs, so close/message can find it */
 const sockets = new Map<string, { role: "host" | "player"; code: string }>();
+/** per-socket token bucket: MAX_MSG_PER_SEC sustained, same as burst */
+const buckets = new Map<string, { tokens: number; at: number }>();
 
+const topic = (code: string) => `room:${code}`;
 const toHost = (room: Room, msg: ServerToHost) => room.host.send(JSON.stringify(msg));
 const toPlayer = (ws: Conn, msg: ServerToPlayer) => ws.send(JSON.stringify(msg));
 
@@ -52,15 +56,23 @@ function pickColor(room: Room) {
   return PLAYER_COLORS.find((c) => !used.has(c)) ?? PLAYER_COLORS[0];
 }
 
-function parse<T>(raw: unknown): T | null {
-  if (typeof raw === "string") {
-    try {
-      return JSON.parse(raw) as T;
-    } catch {
-      return null;
-    }
+/** size cap + rate limit, then JSON. Anything over the limits is dropped silently. */
+function accept<T>(id: string, raw: unknown): T | null {
+  const text = typeof raw === "string" ? raw : JSON.stringify(raw ?? null);
+  if (text.length > MAX_MSG_BYTES) return null;
+  const now = performance.now();
+  const b = buckets.get(id) ?? { tokens: MAX_MSG_PER_SEC, at: now };
+  b.tokens = Math.min(MAX_MSG_PER_SEC, b.tokens + ((now - b.at) / 1000) * MAX_MSG_PER_SEC);
+  b.at = now;
+  buckets.set(id, b);
+  if (b.tokens < 1) return null;
+  b.tokens -= 1;
+  if (typeof raw !== "string") return (raw ?? null) as T | null;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
   }
-  return (raw ?? null) as T | null;
 }
 
 const port = Number(process.env.PORT ?? 3001);
@@ -110,6 +122,7 @@ const app = new Elysia()
       };
       room.players.set(ws.id, { info, ws });
       sockets.set(ws.id, { role, code });
+      ws.subscribe(topic(code)); // for host "all" broadcasts
       toPlayer(ws, { t: "welcome", player: info });
       toHost(room, { t: "join", player: info });
       console.log(`[room ${code}] + ${info.name}`);
@@ -121,20 +134,18 @@ const app = new Elysia()
       if (!meta || !room) return;
 
       if (meta.role === "player") {
-        const msg = parse<PlayerToServer>(raw);
+        const msg = accept<PlayerToServer>(ws.id, raw);
         if (!msg) return;
         switch (msg.t) {
-          case "tilt":
-            toHost(room, {
-              t: "tilt",
-              id: ws.id,
-              x: clamp(Number(msg.x) || 0, -1, 1),
-              y: clamp(Number(msg.y) || 0, -1, 1),
-            });
+          case "pick":
+            if (typeof msg.game === "string") toHost(room, { t: "pick", id: ws.id, game: msg.game });
             break;
-          case "dash":
-          case "start":
+          case "ready":
+          case "menu":
             toHost(room, { t: msg.t, id: ws.id });
+            break;
+          case "game":
+            toHost(room, { t: "game", id: ws.id, d: msg.d });
             break;
           case "ping": {
             const n = Number(msg.n) || 0;
@@ -146,20 +157,21 @@ const app = new Elysia()
         return;
       }
 
-      // host -> one player
+      // host -> one phone or the whole room. Not logged: "to" may carry secrets (roles).
       const msg = parse<HostToServer>(raw);
-      if (!msg) return;
-      const target = room.players.get(msg.id);
-      if (!target) return;
-      if (msg.t === "status") toPlayer(target.ws, { t: "status", status: msg.status, text: msg.text, vip: msg.vip });
-      else if (msg.t === "buzz") toPlayer(target.ws, { t: "buzz", ms: clamp(Number(msg.ms) || 0, 0, MAX_BUZZ_MS) });
-      else if (msg.t === "cooldown") toPlayer(target.ws, { t: "cooldown", ms: clamp(Number(msg.ms) || 0, 0, MAX_COOLDOWN_MS) });
-      else if (msg.t === "pong") toPlayer(target.ws, { t: "pong", n: Number(msg.n) || 0, from: "host" });
+      if (!msg || typeof msg.d !== "object" || msg.d === null) return;
+      if (msg.t === "to") {
+        const target = room.players.get(msg.id);
+        if (target) toPlayer(target.ws, msg.d);
+      } else if (msg.t === "all") {
+        app.server?.publish(topic(room.code), JSON.stringify(msg.d));
+      }
     },
 
     close(ws) {
       const meta = sockets.get(ws.id);
       sockets.delete(ws.id);
+      buckets.delete(ws.id);
       if (!meta) return;
       const room = rooms.get(meta.code);
       if (!room) return;
@@ -178,6 +190,16 @@ const app = new Elysia()
     },
   })
   .listen({ port, hostname: "0.0.0.0" });
+
+/** host messages: trusted (it runs the game), so no rate limit, only parsing */
+function parse<T>(raw: unknown): T | null {
+  if (typeof raw !== "string") return (raw ?? null) as T | null;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
+  }
+}
 
 console.log(`🎮 Tilt Arena server on http://${app.server?.hostname}:${app.server?.port}  (ws: /ws)`);
 

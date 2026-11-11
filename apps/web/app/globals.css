@@ -132,7 +132,9 @@ input {
 .pad {
   position: fixed; inset: 0; display: flex; flex-direction: column; padding: 18px 16px calc(64px + env(safe-area-inset-bottom));
   gap: 14px; user-select: none; -webkit-user-select: none; touch-action: none; transition: background 0.3s;
+  isolation: isolate; /* so a game's .pad-tint can sit between the background and the content */
 }
+.pad-tint { position: absolute; inset: 0; z-index: -1; transition: background 0.3s; }
 .pad-top { display: flex; justify-content: space-between; align-items: center; font-weight: 800; }
 .ping { display: flex; justify-content: flex-end; gap: 10px; margin-top: 4px; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; opacity: .9; }
 .ping span { padding: 2px 8px; border-radius: 999px; background: rgba(0,0,0,.28); color: #fff; }
@@ -162,3 +164,80 @@ input {
 .join-form { max-width: 420px; margin: 0 auto; padding: 32px 16px; display: flex; flex-direction: column; gap: 14px; }
 .join-form h1 { margin: 0; font-size: 34px; }
 .error { background: #ff4d6d33; border: 1px solid var(--accent); padding: 12px 14px; border-radius: 14px; }
+
+/* ---------- hub (GAME_HUB.md) ---------- */
+/* lobby: game cards under the QR + code (replaces the how-to strip) */
+.game-cards {
+  position: absolute; left: 50%; bottom: 4vh; transform: translateX(-50%);
+  display: flex; gap: clamp(14px, 2.5vw, 36px); margin: 0; padding: 0; list-style: none;
+}
+.game-cards button {
+  width: clamp(200px, 20vw, 280px); padding: 12px 16px 16px; border-radius: 18px; text-align: center;
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  background: var(--paper); color: var(--paper-ink); box-shadow: inset 0 0 0 2px var(--paper-line), 0 10px 24px #0007;
+  transform: rotate(-1deg); transition: transform .15s;
+}
+.game-cards button:not(:disabled):hover { transform: rotate(0) translateY(-4px); }
+.game-cards img { width: clamp(70px, 6vw, 96px); height: auto; }
+.game-cards b { font-size: clamp(18px, 1.6vw, 26px); font-weight: 900; }
+.game-cards small { font-size: clamp(12px, 1vw, 15px); font-weight: 600; opacity: .8; line-height: 1.35; }
+.game-cards em { font-style: normal; font-size: 13px; font-weight: 800; color: var(--accent); margin-top: 4px; }
+
+/* intro: title + the game's 3 how-to steps, centred */
+.hub-intro { padding-bottom: 32px; }
+.intro-inner { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; }
+.hub-intro .how-to-play { position: static; transform: none; margin: 28px 0 8px; }
+.hub-intro .how-to-play li { width: clamp(180px, 18vw, 260px); }
+.hub-intro .how-to-play img { width: clamp(100px, 10vw, 150px); }
+
+/* results: the winner card + this game's ranking with points */
+.hub-results { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; pointer-events: none; }
+.hub-results .result-banner { position: relative; left: auto; top: auto; transform: none; margin-top: 5vh; animation-name: ticket-drop; }
+@keyframes ticket-drop { from { transform: translateY(-30px) rotate(-4deg) scale(.85); opacity: 0; } }
+.rank-list {
+  list-style: none; margin: 18px 0 0; padding: 14px 18px; display: grid; gap: 6px; min-width: min(460px, 90vw);
+  background: var(--paper); color: var(--paper-ink); border-radius: 14px; box-shadow: inset 0 0 0 1.5px var(--paper-line), 0 10px 24px #0007;
+}
+.rank-list li { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: clamp(16px, 1.4vw, 22px); }
+.rank-list .place { width: 1.6em; text-align: center; color: var(--accent); font-weight: 900; }
+.rank-list .name { flex: 1; }
+.rank-list .gain { color: #3c8a3a; min-width: 2.5em; text-align: right; }
+.rank-list .total { min-width: 2em; text-align: right; font-variant-numeric: tabular-nums; }
+.hub-results .hint { background: #000a; padding: 8px 16px; border-radius: 999px; color: var(--text); }
+
+/* phone: pick a game, intro steps */
+.hub-pick { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 14px; }
+.hub-pick .small { text-align: center; font-size: 18px; font-weight: 800; }
+.game-pick { display: flex; align-items: center; gap: 14px; text-align: left; padding: 14px 18px; border-radius: 22px; }
+.game-pick img { width: 72px; height: 72px; flex: none; }
+.game-pick b { display: block; font-size: 24px; font-weight: 900; }
+.game-pick small { display: block; font-size: 14px; font-weight: 600; opacity: .8; }
+.intro-steps { display: grid; gap: 8px; margin-top: 12px; }
+.intro-steps .how-to { justify-content: flex-start; margin: 0; }
+.intro-steps .how-to img { width: 60px; height: 60px; }
+.row .hub-main { background: var(--paper); color: var(--paper-ink); box-shadow: inset 0 0 0 1.5px var(--paper-line), 0 4px 0 #0005; }
+
+
+/* ---------- sensor test bench (/play/sensor-test) ---------- */
+.sensor-test { max-width: 560px; margin: 0 auto; padding: 20px 16px 80px; display: flex; flex-direction: column; gap: 14px; }
+.sensor-test h1 { margin: 0; font-size: 30px; }
+.sensor-test h2 { margin: 0 0 8px; font-size: 17px; }
+.sensor-test .muted { color: var(--muted); margin: 0; font-size: 14px; }
+.sensor-test .mono { font-family: ui-monospace, Menlo, monospace; font-size: 13px; margin: 4px 0 0; font-variant-numeric: tabular-nums; }
+.st-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.st-gesture { background: var(--panel); border-radius: 14px; padding: 10px; display: grid; gap: 2px; text-align: center; transition: background .15s, transform .15s; }
+.st-gesture small { color: var(--muted); font-size: 11px; }
+.st-gesture span { font-size: 26px; font-weight: 900; font-variant-numeric: tabular-nums; }
+.st-gesture.on { background: var(--accent-2); color: var(--paper-ink); transform: scale(1.04); }
+.st-gesture.on small { color: inherit; }
+.st-card { background: var(--panel); border-radius: 16px; padding: 14px; }
+.st-row { display: flex; gap: 18px; align-items: center; }
+.st-bar { position: relative; height: 26px; border-radius: 8px; background: #0005; overflow: visible; margin: 18px 0 6px; }
+.st-bar i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 8px; background: var(--accent); }
+.st-bar i.peak { width: 3px; background: var(--paper); border-radius: 0; }
+.st-bar em { position: absolute; top: -16px; bottom: 0; border-left: 2px dashed #fff8; font-style: normal; font-size: 10px; padding-left: 3px; color: var(--muted); }
+.st-log { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 14px; }
+.st-cfg { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; margin-bottom: 12px; }
+.st-cfg label { display: grid; gap: 2px; font-size: 11px; color: var(--muted); }
+.st-cfg label.changed span { color: var(--accent-2); }
+.st-cfg input { padding: 8px 10px; font-size: 15px; }

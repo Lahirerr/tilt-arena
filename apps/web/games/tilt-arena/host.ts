@@ -1,9 +1,12 @@
-import { PLAYER_COLORS, type PlayerInfo, type PlayerStatus } from "@tilt/shared";
-import { INK, RING_SECTORS, mix, paintBall, paintDirt, scratchRing } from "./paint";
+import { PLAYER_COLORS, type PlayerInfo, type TiltIn, type TiltOut, type TiltStatus } from "@tilt/shared";
+import { INK, RING_SECTORS, mix, paintBall, paintDirt, scratchRing } from "@/lib/paint";
+import { capSpeed, collideAll, glide, move, steerToward } from "@/lib/physics";
+import { isBot, type GameContext, type HostGame } from "../types";
 
 /**
- * Tilt Arena game logic. Runs only on the big screen.
+ * Tilt Arena game logic. Runs only on the big screen, inside the hub (GAME_HUB.md §7).
  * World is a 1000x1000 square; the arena is a circle in the middle that shrinks.
+ * Flow: start() -> countdown -> playing -> result (effects) -> ctx.end(); the hub shows results.
  */
 
 const WORLD = 1000;
@@ -24,7 +27,7 @@ const STEER = 4200; // px/s² the velocity moves toward tilt * MAX_SPEED: same f
 const DASH_TIME = 1 / 6; // seconds of boosted glide: ~100px extra reach at full speed
 const DASH_COOLDOWN = 2.5; // seconds; the phone shows it on the button
 const COUNTDOWN = 3;
-const RESULT_TIME = 5;
+const RESULT_TIME = 2.5; // winner effects play this long, then the hub takes over
 
 // juice (screen shake, hit-stop, squash, sparks). Visual only, never touches the simulation.
 const SHAKE_DECAY = 1.4; // trauma lost per second
@@ -34,6 +37,7 @@ const HIT_STOP_SLOW = 0.05; // sim speed during a freeze frame
 const HIT_MIN = 120; // closing speed below this is just resting contact, no juice
 const HIT_FULL = 900; // closing speed that counts as a full-strength hit
 const MAX_PARTICLES = 240;
+const BOT_THINK = 0.12; // seconds between bot steering decisions
 const SCENE_URL = "/ta-scene-schoolyard.webp";
 // glass marbles from assets/src/ta_art.py, same order as PLAYER_COLORS; cropped to the sphere + 2px outline
 const MARBLE_NAMES = ["coral", "pea", "mango", "pandan", "taro", "thaitea", "pinkmilk", "jade"];
@@ -49,7 +53,7 @@ function dashStreak(b: { dashCd: number }) {
   return Math.max(0, 1 - (DASH_COOLDOWN - b.dashCd) / STREAK_TIME);
 }
 
-export type Phase = "lobby" | "countdown" | "playing" | "result";
+export type Phase = "idle" | "countdown" | "playing" | "result";
 
 interface Ball {
   info: PlayerInfo;
@@ -65,7 +69,6 @@ interface Ball {
   dashFx: number; // 0..1 flash
   knock: number; // seconds left of post-hit glide
   place: number; // finishing place, 0 = still in
-  wins: number;
   sqAmp: number; // squash & stretch: + stretches along sqA, - squashes
   sqA: number;
   sqT: number; // seconds since the squash started
@@ -90,8 +93,6 @@ interface Shockwave {
   color: string;
 }
 
-export type StatusFn = (id: string, status: PlayerStatus, text?: string, vip?: boolean) => void;
-
 /** moments worth a sound or a phone buzz; strength is 0..1 */
 export type FxEvent =
   | { type: "hit"; a: string; b: string; strength: number }
@@ -101,11 +102,14 @@ export type FxEvent =
   | { type: "count"; n: number } // 3, 2, 1, then 0 = go
   | { type: "shrink" }; // arena starts closing in
 
-export class Game {
-  phase: Phase = "lobby";
+export class TiltArena implements HostGame {
+  phase: Phase = "idle";
   balls = new Map<string, Ball>();
-  /** join order, first one is the VIP who can start from their phone */
+  /** join order = start positions round the ring */
   order: string[] = [];
+  private ctx!: GameContext;
+  private ended = false;
+  private botClock = 0;
   arena = ARENA_START;
   timer = 0;
   roundTime = 0;
@@ -133,39 +137,97 @@ export class Game {
   private shakeScale =
     typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ? 0.25 : 1;
 
-  constructor(
-    private onStatus: StatusFn,
-    private onFx: (e: FxEvent) => void = () => {},
-  ) {}
+  /* ---------------- HostGame ---------------- */
 
-  get vipId() {
-    return this.order[0];
+  start(ctx: GameContext) {
+    this.ctx = ctx;
+    for (const p of ctx.players) this.addBall(p);
+    this.startCountdown();
   }
 
-  /* ---------------- network events ---------------- */
-
+  /** lateJoin is off, so the hub only calls this before start; a mid-round joiner just watches */
   join(info: PlayerInfo) {
+    const b = this.addBall(info);
+    if (this.phase !== "idle") this.pushStatus(b, "out", "รอรอบถัดไป");
+  }
+
+  leave(id: string) {
+    const b = this.balls.get(id);
+    this.balls.delete(id);
+    this.order = this.order.filter((o) => o !== id);
+    if (b?.alive && this.phase === "playing") this.checkEnd();
+  }
+
+  input(id: string, d: unknown) {
+    const m = d as TiltIn | null;
+    if (!m || typeof m !== "object") return;
+    if (m.k === "tilt") this.tilt(id, Number(m.x) || 0, Number(m.y) || 0);
+    else if (m.k === "dash") this.dash(id);
+  }
+
+  isOut(id: string) {
+    const b = this.balls.get(id);
+    return !!b && !b.alive && this.phase !== "result";
+  }
+
+  dispose() {
+    this.balls.clear();
+    this.order = [];
+  }
+
+  private addBall(info: PlayerInfo) {
     const b: Ball = {
       info, x: CENTER, y: CENTER, vx: 0, vy: 0, tx: 0, ty: 0,
-      alive: false, fall: 0, dashCd: 0, dashFx: 0, knock: 0, place: 0, wins: 0,
+      alive: false, fall: 1, dashCd: 0, dashFx: 0, knock: 0, place: 0,
       sqAmp: 0, sqA: 0, sqT: 1, flash: 0,
     };
     this.balls.set(info.id, b);
     this.order.push(info.id);
-    if (this.phase === "lobby") this.layoutLobby();
-    // late joiners wait for next round
-    this.pushStatus(b, this.phase === "lobby" ? "lobby" : "out", this.phase === "lobby" ? undefined : "รอรอบถัดไป");
-    this.refreshVip();
+    return b;
   }
 
-  leave(id: string) {
-    this.balls.delete(id);
-    this.order = this.order.filter((o) => o !== id);
-    if (this.phase === "lobby") this.layoutLobby();
-    this.refreshVip();
+  /** sounds on the big screen, buzz/cooldown on the phone that it concerns */
+  private onFx(e: FxEvent) {
+    const send = (id: string, d: TiltOut) => this.ctx.send(id, d);
+    switch (e.type) {
+      case "hit":
+        this.ctx.playSound("hit", e.strength);
+        send(e.a, { k: "buzz", ms: Math.round(25 + 45 * e.strength) });
+        send(e.b, { k: "buzz", ms: Math.round(25 + 45 * e.strength) });
+        break;
+      case "dash":
+        this.ctx.playSound("dash"); // the phone already buzzes itself on dash
+        send(e.id, { k: "cooldown", ms: Math.round(e.cooldown * 1000) });
+        break;
+      case "fall": this.ctx.playSound("fall"); break;
+      case "win": this.ctx.playSound("win"); break;
+      case "count": this.ctx.playSound("count", e.n); break;
+      case "shrink": this.ctx.playSound("shrink"); break;
+    }
   }
 
-  tilt(id: string, x: number, y: number) {
+  /** bots steer toward the nearest other ball, with some wobble */
+  private driveBots(dt: number) {
+    this.botClock -= dt;
+    if (this.botClock > 0) return;
+    this.botClock = BOT_THINK;
+    const balls = [...this.balls.values()];
+    for (const b of balls) {
+      if (!isBot(b.info.id) || !b.alive) continue;
+      const target = balls
+        .filter((o) => o !== b && o.alive)
+        .sort((p, q) => Math.hypot(p.x - b.x, p.y - b.y) - Math.hypot(q.x - b.x, q.y - b.y))[0];
+      const tx = target ? target.x - b.x : CENTER - b.x;
+      const ty = target ? target.y - b.y : CENTER - b.y;
+      const len = Math.hypot(tx, ty) || 1;
+      this.tilt(b.info.id, (tx / len) * 0.8 + (Math.random() - 0.5) * 0.6, (ty / len) * 0.8 + (Math.random() - 0.5) * 0.6);
+      if (Math.random() < 0.02) this.dash(b.info.id);
+    }
+  }
+
+  /* ---------------- input ---------------- */
+
+  private tilt(id: string, x: number, y: number) {
     const b = this.balls.get(id);
     if (b) {
       b.tx = x;
@@ -173,7 +235,7 @@ export class Game {
     }
   }
 
-  dash(id: string) {
+  private dash(id: string) {
     const b = this.balls.get(id);
     if (!b || !b.alive || this.phase !== "playing" || b.dashCd > 0) return;
     let dx = b.tx, dy = b.ty;
@@ -194,13 +256,6 @@ export class Game {
       const sp = 150 + Math.random() * 200;
       this.spawn(b.x, b.y, Math.cos(a) * sp, Math.sin(a) * sp, 0.35, 6, b.info.color);
     }
-  }
-
-  requestStart(id?: string) {
-    if (this.phase !== "lobby" && this.phase !== "result") return;
-    if (id && id !== this.vipId) return;
-    if (this.balls.size === 0) return;
-    this.startCountdown();
   }
 
   /* ---------------- flow ---------------- */
@@ -237,7 +292,6 @@ export class Game {
     const alive = [...this.balls.values()].filter((b) => b.alive);
     this.winner = alive.length === 1 && this.balls.size > 1 ? alive[0] : null;
     if (this.winner) {
-      this.winner.wins++;
       // large tier: confetti in every player's colour
       const w = this.winner;
       const colors = [...this.balls.values()].map((b) => b.info.color);
@@ -257,31 +311,17 @@ export class Game {
     }
   }
 
-  private toLobby() {
-    this.phase = "lobby";
-    this.layoutLobby();
-    for (const b of this.balls.values()) this.pushStatus(b, "lobby");
+  /** tell the hub who placed where: winner first, then by how late each one fell */
+  private finish() {
+    if (this.ended) return;
+    this.ended = true;
+    const rest = [...this.balls.values()].filter((b) => b !== this.winner).sort((p, q) => (p.place || 99) - (q.place || 99));
+    const ranking = [...(this.winner ? [[this.winner.info.id]] : []), ...rest.map((b) => [b.info.id])];
+    this.ctx.end({ ranking, headline: this.winner ? `${this.winner.info.name} ชนะ!` : "จบรอบ!" });
   }
 
-  private layoutLobby() {
-    const list = [...this.balls.values()];
-    list.forEach((b, i) => {
-      b.x = CENTER + (i - (list.length - 1) / 2) * 90;
-      b.y = CENTER + 300;
-      b.vx = b.vy = 0;
-      b.alive = false;
-      b.fall = 0;
-    });
-  }
-
-  private refreshVip() {
-    for (const b of this.balls.values()) {
-      if (this.phase === "lobby") this.pushStatus(b, "lobby");
-    }
-  }
-
-  private pushStatus(b: Ball, status: PlayerStatus, text?: string) {
-    this.onStatus(b.info.id, status, text, b.info.id === this.vipId);
+  private pushStatus(b: Ball, status: TiltStatus, text?: string) {
+    this.ctx.send(b.info.id, { k: "status", status, text } satisfies TiltOut);
   }
 
   /* ---------------- simulation ---------------- */
@@ -301,7 +341,7 @@ export class Game {
       b.dashCd = Math.max(0, b.dashCd - dt);
       b.dashFx = Math.max(0, b.dashFx - dt / DASH_TIME);
       b.knock = Math.max(0, b.knock - dt);
-      if (!b.alive && b.fall < 1 && this.phase !== "lobby") b.fall = Math.min(1, b.fall + dt * 2);
+      if (!b.alive && b.fall < 1 && this.phase !== "idle") b.fall = Math.min(1, b.fall + dt * 2);
     }
 
     if (this.phase === "countdown") {
@@ -319,11 +359,12 @@ export class Game {
     if (this.phase === "result") {
       this.timer -= dt;
       this.integrate(dt, 0.5);
-      if (this.timer <= 0) this.toLobby();
+      if (this.timer <= 0) this.finish();
       return;
     }
 
     if (this.phase !== "playing") return;
+    this.driveBots(dt);
 
     const wasShrinking = this.roundTime > SHRINK_DELAY;
     this.roundTime += dt;
@@ -358,73 +399,41 @@ export class Game {
       }
     }
 
+    this.checkEnd();
+  }
+
+  private checkEnd() {
+    const aliveNow = [...this.balls.values()].filter((b) => b.alive).length;
     const solo = this.balls.size === 1;
     if ((solo && aliveNow === 0) || (!solo && aliveNow <= 1)) this.endRound();
   }
 
   private integrate(dt: number, control: number) {
-    const damp = Math.pow(0.35, dt);
     for (const b of this.balls.values()) {
       if (!b.alive) continue;
       if (b.dashFx > 0 || b.knock > 0 || control < 1) {
-        // dashing or round over: keep momentum and glide down with drag
-        b.vx += b.tx * ACCEL * dt * control;
-        b.vy += b.ty * ACCEL * dt * control;
-        b.vx *= damp;
-        b.vy *= damp;
+        // dashing, just hit, or round over: keep momentum and glide down with drag
+        glide(b, b.tx * ACCEL * control, b.ty * ACCEL * control, dt, 0.35);
       } else {
-        // normal control: velocity heads for tilt * MAX_SPEED at one fixed rate,
-        // so pulling back feels the same as pushing out (no hidden braking boost)
-        let tx = b.tx, ty = b.ty;
-        const tl = Math.hypot(tx, ty);
-        if (tl > 1) { tx /= tl; ty /= tl; }
-        const dvx = tx * MAX_SPEED - b.vx, dvy = ty * MAX_SPEED - b.vy;
-        const gap = Math.hypot(dvx, dvy), step = STEER * dt;
-        const k = gap <= step ? 1 : step / gap;
-        b.vx += dvx * k;
-        b.vy += dvy * k;
+        steerToward(b, b.tx, b.ty, dt, { maxSpeed: MAX_SPEED, steer: STEER });
       }
-      const sp = Math.hypot(b.vx, b.vy);
-      const cap = b.dashFx > 0 ? MAX_SPEED * 1.8 : b.knock > 0 ? MAX_SPEED * 1.3 : MAX_SPEED;
-      if (sp > cap) {
-        b.vx = (b.vx / sp) * cap;
-        b.vy = (b.vy / sp) * cap;
-      }
-      b.x += b.vx * dt;
-      b.y += b.vy * dt;
+      capSpeed(b, b.dashFx > 0 ? MAX_SPEED * 1.8 : b.knock > 0 ? MAX_SPEED * 1.3 : MAX_SPEED);
+      move(b, dt);
     }
   }
 
   private collide() {
     const list = [...this.balls.values()].filter((b) => b.alive);
-    for (let i = 0; i < list.length; i++) {
-      for (let j = i + 1; j < list.length; j++) {
-        const a = list[i], b = list[j];
-        const dx = b.x - a.x, dy = b.y - a.y;
-        const d = Math.hypot(dx, dy);
-        if (d === 0 || d >= BALL_R * 2) continue;
-        const nx = dx / d, ny = dy / d;
-        // separate
-        const overlap = BALL_R * 2 - d;
-        a.x -= nx * overlap / 2; a.y -= ny * overlap / 2;
-        b.x += nx * overlap / 2; b.y += ny * overlap / 2;
-        // bounce (equal mass); the punch comes from the juice, not from extra energy
-        const rel = (a.vx - b.vx) * nx + (a.vy - b.vy) * ny;
-        if (rel <= 0) continue;
-        // who rammed whom: the one moving harder into the contact is the hitter
-        const aIn = a.vx * nx + a.vy * ny, bIn = -(b.vx * nx + b.vy * ny);
-        const imp = (rel * (1 + BOUNCE)) / 2;
-        a.vx -= imp * nx; a.vy -= imp * ny;
-        b.vx += imp * nx; b.vy += imp * ny;
-        // the ball that got hit flies a bit further (capped), and glides briefly so steering doesn't eat it
-        if (rel >= HIT_MIN) {
-          const kick = Math.min(KNOCK_MAX, rel * KNOCK_BONUS);
-          if (aIn >= bIn) { b.vx += kick * nx; b.vy += kick * ny; b.knock = KNOCK_TIME; }
-          else { a.vx -= kick * nx; a.vy -= kick * ny; a.knock = KNOCK_TIME; }
-        }
-        this.onHit(a, b, nx, ny, rel);
+    // bounce (equal mass); the punch comes from the juice, not from extra energy
+    collideAll(list, BALL_R, BOUNCE, ({ a, b, nx, ny, rel, aIn, bIn }) => {
+      // the ball that got hit flies a bit further (capped), and glides briefly so steering doesn't eat it
+      if (rel >= HIT_MIN) {
+        const kick = Math.min(KNOCK_MAX, rel * KNOCK_BONUS);
+        if (aIn >= bIn) { b.vx += kick * nx; b.vy += kick * ny; b.knock = KNOCK_TIME; }
+        else { a.vx -= kick * nx; a.vy -= kick * ny; a.knock = KNOCK_TIME; }
       }
-    }
+      this.onHit(a, b, nx, ny, rel);
+    });
   }
 
   /* ---------------- juice ---------------- */
@@ -694,8 +703,7 @@ export class Game {
 
     // balls
     for (const b of this.balls.values()) {
-      const showInArena = this.phase !== "lobby";
-      if (showInArena && !b.alive && b.fall >= 1) continue;
+      if (!b.alive && b.fall >= 1) continue;
       const scale = 1 - b.fall * 0.25; // out of the ring: shrink a little and fade
       const r = BALL_R * scale;
       ctx.globalAlpha = 1 - b.fall;

@@ -9,6 +9,9 @@ const MASTER_DB = -6;
 const SFX_DB = -3;
 const MUTE_KEY = "tilt:muted";
 
+/** sounds a game can ask the hub for through GameContext.playSound */
+export type SoundName = "hit" | "dash" | "fall" | "win" | "count" | "shrink";
+
 const dbToGain = (db: number) => Math.pow(10, db / 20);
 /** small random pitch offset so repeated hits don't sound like a machine gun */
 const vary = (amount = 0.08) => 1 + (Math.random() * 2 - 1) * amount;
@@ -58,6 +61,18 @@ export class Sfx {
     } catch {}
     if (this.ctx) this.master.gain.setTargetAtTime(this.muted ? 0 : dbToGain(MASTER_DB), this.ctx.currentTime, 0.02);
     return this.muted;
+  }
+
+  /** one entry point for games: strength is hit force 0..1, or the count number */
+  play(name: SoundName, v = 0) {
+    switch (name) {
+      case "hit": return this.hit(v);
+      case "dash": return this.dash();
+      case "fall": return this.fall();
+      case "win": return this.win();
+      case "count": return this.count(v);
+      case "shrink": return this.shrink();
+    }
   }
 
   /* ---------------- the sounds ---------------- */
