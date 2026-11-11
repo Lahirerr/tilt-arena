@@ -34,6 +34,7 @@ const HIT_STOP_SLOW = 0.05; // sim speed during a freeze frame
 const HIT_MIN = 120; // closing speed below this is just resting contact, no juice
 const HIT_FULL = 900; // closing speed that counts as a full-strength hit
 const MAX_PARTICLES = 240;
+const SCENE_URL = "/ta-scene-schoolyard.webp";
 
 export type Phase = "lobby" | "countdown" | "playing" | "result";
 
@@ -109,6 +110,8 @@ export class Game {
   private waves: Shockwave[] = [];
   // painted once, then only clipped/scaled at draw time
   private dirt: CanvasPattern | null = null;
+  /** painted schoolyard backdrop (assets/raster/ta-scene-schoolyard); the tiled dirt shows until it loads */
+  private scene: HTMLImageElement | null = null;
   private ring = scratchRing();
   private ballArt = new Map<string, ReturnType<typeof paintBall>>();
   /** prefers-reduced-motion: keep the sparks, tone down the camera */
@@ -568,8 +571,21 @@ export class Game {
     }
     const m = 80; // margin so screen shake never shows an edge
     const x0 = -ox / s - m, y0 = -oy / s - m, x1 = (w - ox) / s + m, y1 = (h - oy) / s + m;
-    ctx.fillStyle = this.dirt ?? INK.soil;
-    ctx.fillRect(x0, y0, x1 - x0, y1 - y0);
+    if (!this.scene) {
+      this.scene = new Image();
+      this.scene.src = SCENE_URL;
+    }
+    const img = this.scene;
+    if (img.complete && img.naturalWidth > 0) {
+      // cover the whole screen (plus shake margin), centred on the yard
+      const rw = x1 - x0, rh = y1 - y0;
+      const k = Math.max(rw / img.naturalWidth, rh / img.naturalHeight);
+      const dw = img.naturalWidth * k, dh = img.naturalHeight * k;
+      ctx.drawImage(img, x0 + (rw - dw) / 2, y0 + (rh - dh) / 2, dw, dh);
+    } else {
+      ctx.fillStyle = this.dirt ?? INK.soil;
+      ctx.fillRect(x0, y0, x1 - x0, y1 - y0);
+    }
     // light from upper left + darker corners, so the middle of the yard reads as the stage
     const lit = ctx.createLinearGradient(x0, y0, x1, y1);
     lit.addColorStop(0, "rgba(255,214,150,0.12)");

@@ -12,3 +12,6 @@ apps/web/next-env.d.ts
 
 # Local Netlify folder
 .netlify
+
+# Python bytecode (art scripts)
+__pycache__/
