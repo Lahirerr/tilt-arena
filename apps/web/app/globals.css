@@ -241,3 +241,28 @@ input {
 .st-cfg label { display: grid; gap: 2px; font-size: 11px; color: var(--muted); }
 .st-cfg label.changed span { color: var(--accent-2); }
 .st-cfg input { padding: 8px 10px; font-size: 15px; }
+
+/* ---------- คืนไล่ผี (Ghost Night) phone ---------- */
+.gn-lock { align-self: flex-end; padding: 8px 14px; font-size: 14px; background: #0006; color: var(--text); box-shadow: inset 0 0 0 1px #fff3; -webkit-touch-callout: none; }
+.gn-main { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%; }
+.gn-candle { position: relative; width: 40px; height: 120px; margin-bottom: 8px; }
+.gn-candle::after { content: ""; position: absolute; left: 4px; right: 4px; bottom: 0; height: 80px; border-radius: 6px; background: linear-gradient(90deg, #e9dcc0, #fff6e4 40%, #cdbd9c); box-shadow: inset 0 0 0 1.5px #a8896a; }
+.gn-candle i { position: absolute; left: 50%; bottom: 80px; width: 22px; height: 36px; margin-left: -11px; border-radius: 50% 50% 45% 45%; background: radial-gradient(circle at 50% 70%, #fff6c8 0 25%, #ffb347 55%, #ff6a1a00 75%); filter: drop-shadow(0 0 14px #ffae42); animation: gn-flicker .18s infinite alternate; transform-origin: 50% 100%; }
+.gn-candle.out i { display: none; }
+.gn-candle span { position: absolute; left: 50%; bottom: 86px; transform: translateX(-50%); color: var(--muted); font-weight: 800; }
+@keyframes gn-flicker { to { transform: scale(.92, 1.06) rotate(2deg); } }
+.gn-place { font-weight: 800; color: var(--muted); }
+.gn-hint { font-size: 24px; font-weight: 900; text-align: center; transition: transform .1s; }
+.gn-hint.beat { transform: scale(1.12); color: var(--accent-2); }
+.gn-bell { margin-right: 6px; }
+.gn-progress { width: 80%; height: 14px; border-radius: 99px; background: #fff2; overflow: hidden; }
+.gn-progress i { display: block; height: 100%; background: var(--accent-2); transition: width .2s; }
+.gn-scare { color: #ff8f80; font-weight: 800; animation: gn-shiver .1s infinite alternate; }
+@keyframes gn-shiver { to { transform: translateX(3px); } }
+.gn-fake { display: grid; gap: 8px; }
+.gn-fake small { color: var(--muted); text-align: center; }
+.gn-role { position: absolute; inset: 0; z-index: 5; background: #0d0b14f2; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 32px; text-align: center; }
+.gn-role .big { font-size: 72px; }
+.gn-role b { font-size: 28px; }
+.gn-role p { margin: 0; color: var(--muted); line-height: 1.5; }
+.gn-role small { color: var(--muted); margin-top: 12px; }

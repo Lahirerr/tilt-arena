@@ -86,3 +86,32 @@ export function collideAll<B extends Body>(list: B[], radius: number, bounce: nu
     }
   }
 }
+
+/** a wall: segment from (x1,y1) to (x2,y2) */
+export interface Wall {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+}
+
+/** push a ball out of every wall it overlaps and bounce it off (restitution `bounce`) */
+export function collideWalls(b: Body, radius: number, walls: Wall[], bounce = 0.3) {
+  for (const w of walls) {
+    const wx = w.x2 - w.x1, wy = w.y2 - w.y1;
+    const len2 = wx * wx + wy * wy || 1;
+    const t = Math.max(0, Math.min(1, ((b.x - w.x1) * wx + (b.y - w.y1) * wy) / len2));
+    const cx = w.x1 + wx * t, cy = w.y1 + wy * t;
+    const dx = b.x - cx, dy = b.y - cy;
+    const d = Math.hypot(dx, dy);
+    if (d >= radius || d === 0) continue;
+    const nx = dx / d, ny = dy / d;
+    b.x = cx + nx * radius;
+    b.y = cy + ny * radius;
+    const vn = b.vx * nx + b.vy * ny;
+    if (vn < 0) {
+      b.vx -= (1 + bounce) * vn * nx;
+      b.vy -= (1 + bounce) * vn * ny;
+    }
+  }
+}

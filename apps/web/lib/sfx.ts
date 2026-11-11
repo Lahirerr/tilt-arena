@@ -10,7 +10,7 @@ const SFX_DB = -3;
 const MUTE_KEY = "tilt:muted";
 
 /** sounds a game can ask the hub for through GameContext.playSound */
-export type SoundName = "hit" | "dash" | "fall" | "win" | "count" | "shrink";
+export type SoundName = "hit" | "dash" | "fall" | "win" | "count" | "shrink" | "bell" | "bark" | "scare" | "crow";
 
 const dbToGain = (db: number) => Math.pow(10, db / 20);
 /** small random pitch offset so repeated hits don't sound like a machine gun */
@@ -72,6 +72,10 @@ export class Sfx {
       case "win": return this.win();
       case "count": return this.count(v);
       case "shrink": return this.shrink();
+      case "bell": return this.bell();
+      case "bark": return this.bark();
+      case "scare": return this.scare();
+      case "crow": return this.crow();
     }
   }
 
@@ -136,6 +140,55 @@ export class Sfx {
     const t = ctx.currentTime;
     this.tone("sawtooth", 220, 220, t, 0.18, 0.12);
     this.tone("sawtooth", 165, 165, t + 0.2, 0.3, 0.12);
+  }
+
+  /* ---------------- Ghost Night ---------------- */
+
+  /** small temple bell: two inharmonic partials, long ring */
+  bell() {
+    const ctx = this.ready();
+    if (!ctx) return;
+    const t = ctx.currentTime, p = vary(0.03);
+    this.tone("sine", 1320 * p, 1320 * p, t, 1.2, 0.25);
+    this.tone("sine", 3170 * p, 3170 * p, t, 0.5, 0.08);
+  }
+
+  /** two quick barks from under the house */
+  bark() {
+    const ctx = this.ready();
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    for (const d of [0, 0.22]) {
+      this.tone("sawtooth", 420 * vary(), 230, t + d, 0.12, 0.18);
+      this.burst(900, 1.5, t + d, 0.1, 0.12, "bandpass");
+    }
+  }
+
+  /** ghostly whoosh + low drone */
+  scare() {
+    const ctx = this.ready();
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    const src = this.noiseSource();
+    const bp = ctx.createBiquadFilter();
+    bp.type = "bandpass";
+    bp.Q.value = 4;
+    bp.frequency.setValueAtTime(300, t);
+    bp.frequency.exponentialRampToValueAtTime(1800, t + 0.9);
+    src.connect(bp).connect(this.envelope(t, 1.1, 0.35));
+    src.start(t);
+    src.stop(t + 1.2);
+    this.tone("triangle", 110, 82, t, 1.2, 0.25);
+  }
+
+  /** rooster at dawn */
+  crow() {
+    const ctx = this.ready();
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    this.tone("sawtooth", 600, 900, t, 0.18, 0.12);
+    this.tone("sawtooth", 900, 1100, t + 0.2, 0.25, 0.12);
+    this.tone("sawtooth", 1100, 700, t + 0.48, 0.5, 0.12);
   }
 
   /* ---------------- building blocks ---------------- */
