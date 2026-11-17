@@ -146,10 +146,13 @@ export default function HubController({ code }: { code: string }) {
   const Controller = entry?.Controller;
 
   return (
-    <main className="pad" style={{ background: me.color }}>
+    <main className="pad" style={{ background: me.color, fontFamily: hub.screen !== "lobby" ? entry?.meta.font : undefined }}>
       {gate}
       <div className="pad-top">
-        <span>{me.name}{hub.vip ? " 👑" : ""}</span>
+        <span>
+          {me.name}
+          {hub.vip && <img className="ir-pic" src="/ui/ir-crown.svg" alt="หัวห้อง" draggable={false} />}
+        </span>
         <span>ห้อง {code}</span>
       </div>
       <div className="ping" title="เวลาไป-กลับ: มือถือ↔เซิร์ฟ / มือถือ↔เซิร์ฟ↔จอใหญ่">

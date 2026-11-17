@@ -4,14 +4,20 @@ import { useEffect, useRef, useState } from "react";
 import { clamp, type IceIn, type IceItem, type IceOut, type IcePhase } from "@tilt/shared";
 import { useTilt } from "@/lib/sensors/useTilt";
 import type { ControllerProps } from "../types";
+import { artUrl, isArt, type Art } from "./art";
 
 const SEND_EVERY_MS = 20;
 type InputMode = "tilt" | "touch";
-const ITEMS: Record<IceItem, { icon: string; name: string }> = {
-  banana: { icon: "🍌", name: "วางเปลือกกล้วย" },
-  fan: { icon: "💨", name: "เป่าพัดลมใส่คนอื่น" },
-  lid: { icon: "🫙", name: "ครอบถาด 6 วิ" },
+const ITEMS: Record<IceItem, { icon: Art; name: string }> = {
+  banana: { icon: "banana", name: "วางเปลือกกล้วย" },
+  fan: { icon: "fan", name: "เป่าพัดลมใส่คนอื่น" },
+  lid: { icon: "lid", name: "ครอบถาด 6 วิ" },
 };
+
+/** painted DDJoinJoy art instead of emoji */
+function Pic({ k, className = "ir-pic" }: { k: Art; className?: string }) {
+  return <img className={className} src={artUrl(k)} alt="" draggable={false} />;
+}
 
 /** ส่งน้ำแข็ง on the phone: the screen IS the tray. Cube positions come from the big screen. */
 export default function IceController({ send, subscribe }: ControllerProps) {
@@ -22,7 +28,7 @@ export default function IceController({ send, subscribe }: ControllerProps) {
   const [note, setNote] = useState<{ at: number; text: string; bad: boolean } | null>(null);
   const [pop, setPop] = useState<{ at: number; text: string; good: boolean } | null>(null);
   /** the big full-screen moment: an item in your hands, a banana under your feet... */
-  const [burst, setBurst] = useState<{ at: number; icon: string; text: string; bad: boolean } | null>(null);
+  const [burst, setBurst] = useState<{ at: number; icon: Art; text: string; bad: boolean } | null>(null);
   const [flash, setFlash] = useState<{ at: number; color: string } | null>(null);
   const trayRef = useRef<HTMLDivElement>(null);
   const shake = (strength: number) =>
@@ -88,8 +94,8 @@ export default function IceController({ send, subscribe }: ControllerProps) {
             if (m.bad) navigator.vibrate?.([150, 50, 150]);
             else navigator.vibrate?.(40);
             const text = String(m.text ?? "").slice(0, 60);
-            if (m.icon) {
-              setBurst({ at: performance.now(), icon: String(m.icon).slice(0, 8), text, bad: !!m.bad });
+            if (isArt(m.icon)) {
+              setBurst({ at: performance.now(), icon: m.icon, text, bad: !!m.bad });
               if (m.bad) {
                 setFlash({ at: performance.now(), color: "#ff5a4a" });
                 shake(30);
@@ -155,7 +161,7 @@ export default function IceController({ send, subscribe }: ControllerProps) {
         <div className="pad-tint" style={{ background: "#2f5f86" }} />
         <div className="pad-status">
           <div>
-            <div className="big">🧊</div>
+            <Pic k="cube" className="ir-end-pic" />
             <div className="small">{text ?? ""}</div>
           </div>
         </div>
@@ -187,20 +193,26 @@ export default function IceController({ send, subscribe }: ControllerProps) {
         <div key={burst.at} className={`ir-burst ${burst.bad ? "bad" : ""}`}>
           <div className="ir-burst-rays" />
           <div className="ir-burst-in">
-            <div className="ir-burst-icon">{burst.icon}</div>
+            <img className="ir-burst-icon" src={artUrl(burst.icon)} alt="" draggable={false} />
             <div className="ir-burst-text">{burst.text}</div>
           </div>
         </div>
       )}
       <div className="ir-top">
         <span>
-          ⭐ {info.score} <small className="ir-rank">{info.rank === 1 && info.score > 0 ? "👑 ที่ 1" : `ที่ ${info.rank}`}</small>
+          <Pic k="star" /> {info.score}{" "}
+          <small className="ir-rank">
+            {info.rank === 1 && info.score > 0 && <Pic k="crown" />}ที่ {info.rank}
+          </small>
         </span>
-        <span className={info.rush ? "ir-rush" : ""}>{info.boss ? `🤴 ${info.left}` : info.rush ? `⚡ x2 · ${info.left}` : `⏱ ${info.left}`}</span>
+        <span className={info.rush ? "ir-rush" : ""}>
+          <Pic k={info.boss ? "tycoon-smug" : info.rush ? "bolt" : "clock"} />
+          {info.rush && !info.boss ? `x2 · ${info.left}` : info.left}
+        </span>
       </div>
       {info.boss > 0 && phase === "playing" && (
         <div key={info.boss} className={`ir-boss ${info.boss >= 2 ? "hot" : ""}`}>
-          🤴 เจ้าสัวให้คุณ <b>x{info.boss}</b>
+          <Pic k="tycoon-smug" /> เจ้าสัวให้คุณ <b>x{info.boss}</b>
         </div>
       )}
 
@@ -211,7 +223,7 @@ export default function IceController({ send, subscribe }: ControllerProps) {
           <div className="ir-main">
             {phase === "playing" && (
               <div key={count} className={`ir-count ${count >= 8 ? "full" : ""}`}>
-                🧊 {count}/8{count >= 8 ? " เต็ม!" : ""}
+                <Pic k="cube" /> {count}/8{count >= 8 ? " เต็ม!" : ""}
               </div>
             )}
             <div
@@ -228,7 +240,7 @@ export default function IceController({ send, subscribe }: ControllerProps) {
               {cubes.length === 0 && <span className="ir-empty">ถาดว่าง</span>}
               <em className="ir-dot" style={{ transform: `translate(${viz.x * 40}px, ${viz.y * 40}px)` }} />
             </div>
-            <div className="ir-hint">{info.lid > 0 ? `🫙 ฝาครอบ อีก ${info.lid} วิ` : info.hint}</div>
+            <div className="ir-hint">{info.lid > 0 ? <><Pic k="lid" /> ฝาครอบ อีก {info.lid} วิ</> : info.hint}</div>
             {noteOn && <div className={`ir-note ${note.bad ? "bad" : ""}`}>{note.text}</div>}
             {popOn && (
               <div key={pop.at} className={`ir-pop ${pop.good ? "good" : "bad"}`}>
@@ -243,7 +255,7 @@ export default function IceController({ send, subscribe }: ControllerProps) {
         <button className={`ir-item ${info.item ? "ready" : "empty"}`} onPointerDown={useItem} disabled={!info.item}>
           {info.item ? (
             <>
-              <span key={info.item} className="ir-item-icon">{ITEMS[info.item].icon}</span>
+              <img key={info.item} className="ir-item-icon" src={artUrl(ITEMS[info.item].icon)} alt="" draggable={false} />
               {ITEMS[info.item].name}
             </>
           ) : (

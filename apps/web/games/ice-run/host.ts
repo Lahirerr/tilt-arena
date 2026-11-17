@@ -2,20 +2,21 @@ import type { IceIn, IceItem, IceOut, PlayerInfo } from "@tilt/shared";
 import { collideAll, move, steerToward } from "@/lib/physics";
 import { isBot, type GameContext, type HostGame } from "../types";
 import { backOut, Fx, hexA } from "./fx";
+import { drawArt, font, preloadArt, type Art } from "./art";
 import { drawLights, paintBeerGarden, paintBowl } from "./scene";
 
 /**
  * ส่งน้ำแข็ง (Ice Run), demo. Runs only on the big screen.
  * Each phone is a tray. Tilt to walk, but the tray tilts too: cubes slide downhill, and lag
  * behind when you speed up, stop or get bumped. Fill up at the ice bucket in the middle, carry
- * the cubes to customers at the tables. Most points in 2 minutes wins.
+ * the cubes to customers at the tables. Most points in 1 minute wins.
  * Items on the floor: banana peel (trap), fan (gust on everyone else), lid (your cubes can't fall).
  */
 
 export const IR = {
   W: 1600,
   H: 1000,
-  ROUND: 120, // seconds
+  ROUND: 60, // seconds
   COUNTDOWN: 3,
   END_TIME: 3, // results on the big screen before the hub takes over
 
@@ -48,7 +49,7 @@ export const IR = {
   ],
   TABLE_R: 115,
   WANT: [2, 5], // cubes a customer asks for (inclusive)
-  PATIENCE: 30, // seconds before a customer gives up and leaves
+  PATIENCE: 22, // seconds before a customer gives up and leaves
   SPAWN_GAP: [2, 5], // seconds between new customers
   PTS_CUBE: 10,
   PTS_FULL: 20, // bonus for completing an order
@@ -56,7 +57,7 @@ export const IR = {
   // VIP: rare, wants a lot, leaves sooner, pays big
   VIP_CHANCE: 0.15, // per new customer while playing (one VIP at a time)
   VIP_WANT: [4, 6],
-  VIP_PATIENCE: 22,
+  VIP_PATIENCE: 16,
   VIP_CUBE: 25,
   VIP_FULL: 80,
 
@@ -75,7 +76,7 @@ export const IR = {
   ROAM_FILL_EVERY: 0.15,
 
   // the last RUSH seconds: customers come fast, every point counts double
-  RUSH: 30,
+  RUSH: 25,
   RUSH_MULT: 2,
   RUSH_GAP: [0.8, 2],
   RUSH_EXTRA: 2, // more customers at once
@@ -84,9 +85,9 @@ export const IR = {
   SPILL_CALLOUT: 3, // cubes lost in one go that earn a "spilled everything" callout
 
   // items
-  ITEM_MAX: 2, // on the floor at once
-  ITEM_GAP: [6, 10], // seconds between new items
-  ITEM_FIRST: 8, // first item appears this long into the round
+  ITEM_MAX: 3, // on the floor at once
+  ITEM_GAP: [4, 7], // seconds between new items
+  ITEM_FIRST: 5, // first item appears this long into the round
   ITEM_PICK: 58, // pick-up distance from the player's centre
   PEEL_LIFE: 25, // seconds a peel stays on the floor
   PEEL_R: 40, // step on it within BALL_R + this
@@ -186,7 +187,7 @@ export class IceRun implements HostGame {
   peels: Peel[] = [];
   private gusts: Gust[] = [];
   /** big-screen callouts so the room sees who got got */
-  banners: { text: string; color: string; t: number }[] = [];
+  banners: { text: string; color: string; t: number; icon?: Art }[] = [];
   private rushOn = false;
   private superWarned = false;
   /** เจ้าสัว is in the middle: bucket closed, he buys everything at a rank multiplier */
@@ -210,6 +211,7 @@ export class IceRun implements HostGame {
 
   start(ctx: GameContext) {
     this.ctx = ctx;
+    preloadArt();
     const n = ctx.players.length;
     ctx.players.forEach((info, i) => {
       const a = (i / Math.max(1, n)) * Math.PI * 2 - Math.PI / 2;
@@ -371,8 +373,8 @@ export class IceRun implements HostGame {
           p.cubes.push({ x: Math.cos(a) * d, y: Math.sin(a) * d, vx: 0, vy: 0 });
           const full = p.cubes.length >= IR.TRAY_MAX;
           this.fx.pop(p, full
-            ? { key: `fill:${p.info.id}`, icon: "🧊", text: "ถาดเต็ม!", size: 64, life: 1.2, rays: true, color: "#9fe0ff" }
-            : { key: `fill:${p.info.id}`, icon: "🧊", text: `${p.cubes.length}/${IR.TRAY_MAX}`, size: 40, life: 0.7, color: "#d8f3ff", dy: 64 });
+            ? { key: `fill:${p.info.id}`, icon: "cube", text: "ถาดเต็ม!", size: 64, life: 1.2, rays: true, color: "#9fe0ff" }
+            : { key: `fill:${p.info.id}`, icon: "cube", text: `${p.cubes.length}/${IR.TRAY_MAX}`, size: 40, life: 0.7, color: "#d8f3ff", dy: 64 });
           this.fx.burst(p.x, p.y, 4, ["#e8f7ff", "#9fd8ff"], 140, "dot", 5);
         }
       } else {
@@ -454,13 +456,13 @@ export class IceRun implements HostGame {
     });
     const lost = before - p.cubes.length;
     if (lost > 0 && this.phase === "playing") {
-      this.fx.pop(p, { key: `drop:${p.info.id}`, icon: lost >= IR.SPILL_CALLOUT ? "💦" : "", text: `หก! -${lost}`, size: lost >= IR.SPILL_CALLOUT ? 80 : 50, life: 1.1, color: "#ff8a7a", rays: lost >= IR.SPILL_CALLOUT });
+      this.fx.pop(p, { key: `drop:${p.info.id}`, icon: lost >= IR.SPILL_CALLOUT ? "splash" : undefined, text: `หก! -${lost}`, size: lost >= IR.SPILL_CALLOUT ? 80 : 50, life: 1.1, color: "#ff8a7a", rays: lost >= IR.SPILL_CALLOUT });
       this.fx.burst(p.x, p.y, 8 * lost, ["#9fd8ff", "#cfeeff", "#ffffff"], 320, "dot", 7);
       if (lost >= IR.SPILL_CALLOUT) this.fx.kick(10);
       for (let i = 0; i < lost; i++) this.splashes.push({ x: p.x + (this.rand() - 0.5) * 50, y: p.y + (this.rand() - 0.5) * 50, t: 0 });
       this.ctx.playSound("fall");
       this.send(p, { k: "drop" });
-      if (lost >= IR.SPILL_CALLOUT) this.banner(`${p.info.name} ทำน้ำแข็งหก ${lost} ก้อน! 💦`, p.info.color);
+      if (lost >= IR.SPILL_CALLOUT) this.banner(`${p.info.name} ทำน้ำแข็งหก ${lost} ก้อน!`, p.info.color, "splash");
     }
   }
 
@@ -478,21 +480,21 @@ export class IceRun implements HostGame {
       this.customers = this.customers.filter((o) => o !== c);
     }
     if (this.rushOn) pts *= IR.RUSH_MULT;
-    if (c.vip && full) this.banner(`👑 ${p.info.name} เสิร์ฟ VIP! +${pts}`, "#ffd23f");
+    if (c.vip && full) this.banner(`${p.info.name} เสิร์ฟ VIP! +${pts}`, "#ffd23f", "vip-wow");
     else if (full && n >= 4) this.banner(`${p.info.name} ส่งครบ ${n} ก้อน! +${pts}`, p.info.color);
     p.score += pts;
     const t = IR.TABLES[c.table];
-    this.fx.pop({ x: t.x, y: t.y }, { icon: full ? "😋" : "🙂", text: `+${pts}`, size: full ? 96 : 64, life: 1.5, rays: full, color: full ? "#ffd23f" : "#fff3c4", dy: 40 });
+    this.fx.pop({ x: t.x, y: t.y }, { icon: full ? "customer-yum" : "customer-happy", text: `+${pts}`, size: full ? 96 : 64, life: 1.5, rays: full, color: full ? "#ffd23f" : "#fff3c4", dy: 40 });
     this.fx.burst(t.x, t.y, full ? 46 : 14, full ? ["#ffd23f", "#d9574a", "#3b7fc4", "#3f9a5c", "#ffffff", p.info.color] : ["#ffd23f", "#fff3c4"], full ? 620 : 300, full ? "confetti" : "star", full ? 14 : 10);
     if (full) this.fx.kick(6);
     if (c.vip) {
       // the big one: gold everything
-      this.fx.pop({ x: t.x, y: t.y }, { key: `vip:${c.table}`, icon: full ? "🤩" : "👑", text: `+${pts}`, size: full ? 140 : 90, life: full ? 2.2 : 1.5, rays: true, color: "#ffd23f", dy: 60 });
+      this.fx.pop({ x: t.x, y: t.y }, { key: `vip:${c.table}`, icon: full ? "vip-wow" : "crown", text: `+${pts}`, size: full ? 140 : 90, life: full ? 2.2 : 1.5, rays: true, color: "#ffd23f", dy: 60 });
       this.fx.burst(t.x, t.y, full ? 90 : 24, ["#ffd23f", "#f2b632", "#fff3c4", "#ffffff"], full ? 900 : 400, full ? "confetti" : "star", full ? 18 : 12);
       if (full) {
         this.fx.kick(16);
         this.fx.flashScreen("#ffd23f", 0.5);
-        this.send(p, { k: "note", text: `เสิร์ฟ VIP! +${pts}`, bad: false, icon: "🤩" });
+        this.send(p, { k: "note", text: `เสิร์ฟ VIP! +${pts}`, bad: false, icon: "vip-wow" });
       }
     }
     this.ctx.playSound("bell");
@@ -511,7 +513,7 @@ export class IceRun implements HostGame {
     const gone = this.customers.filter((c) => c.wait <= 0);
     for (const c of gone) {
       const t = IR.TABLES[c.table];
-      this.fx.pop({ x: t.x, y: t.y }, { icon: "😤", text: c.vip ? "VIP ไปแล้ว!" : "ไม่รอแล้ว!", size: 72, life: 1.4, color: "#ffb0a0", dy: 40 });
+      this.fx.pop({ x: t.x, y: t.y }, { icon: c.vip ? "vip-annoyed" : "customer-angry", text: c.vip ? "VIP ไปแล้ว!" : "ไม่รอแล้ว!", size: 72, life: 1.4, color: "#ffb0a0", dy: 40 });
     }
     this.customers = this.customers.filter((c) => c.wait > 0);
 
@@ -539,13 +541,13 @@ export class IceRun implements HostGame {
       const w = IR.VIP_WANT[0] + Math.floor(this.rand() * (IR.VIP_WANT[1] - IR.VIP_WANT[0] + 1));
       this.customers.push({ table, want: w, wait: IR.VIP_PATIENCE, max: IR.VIP_PATIENCE, vip: true, sparkle: 0 });
       const t = IR.TABLES[table];
-      this.fx.pop(t, { icon: "👑", text: "ลูกค้า VIP!", size: 120, life: 2, rays: true, color: "#ffd23f", dy: 40 });
+      this.fx.pop(t, { icon: "crown", text: "ลูกค้า VIP!", size: 120, life: 2, rays: true, color: "#ffd23f", dy: 40 });
       this.fx.burst(t.x, t.y, 40, ["#ffd23f", "#fff3c4", "#ffffff"], 520, "star", 13);
       this.fx.flashScreen("#ffd23f", 0.35);
       this.fx.kick(8);
-      this.banner(`👑 ลูกค้า VIP มาแล้ว! ส่งครบได้แต้มเยอะ`, "#ffd23f");
+      this.banner("ลูกค้า VIP มาแล้ว! ส่งครบได้แต้มเยอะ", "#ffd23f", "crown");
       this.ctx.playSound("count", 2);
-      for (const p of this.players.values()) this.send(p, { k: "note", text: "ลูกค้า VIP มาแล้ว!", bad: false, icon: "👑" });
+      for (const p of this.players.values()) this.send(p, { k: "note", text: "ลูกค้า VIP มาแล้ว!", bad: false, icon: "crown" });
       return;
     }
     this.customers.push({ table, want, wait: IR.PATIENCE, max: IR.PATIENCE, vip: false, sparkle: 0 });
@@ -558,7 +560,7 @@ export class IceRun implements HostGame {
     const top = Math.max(...[...this.players.values()].map((p) => p.score), 0);
     for (const p of this.players.values()) {
       const win = p.score === top && top > 0;
-      this.send(p, { k: "phase", phase: "end", text: win ? `ชนะ! ${p.score} แต้ม 🏆` : `ได้ ${p.score} แต้ม` });
+      this.send(p, { k: "phase", phase: "end", text: win ? `ชนะ! ${p.score} แต้ม` : `ได้ ${p.score} แต้ม` });
     }
   }
 
@@ -606,10 +608,10 @@ export class IceRun implements HostGame {
       this.items = this.items.filter((i) => i !== it);
       p.item = it.kind;
       this.ctx.playSound("count", 1);
-      this.fx.pop(p, { key: `item:${p.info.id}`, icon: ITEM_EMOJI[it.kind], text: `ได้${ITEM_NAME[it.kind]}!`, size: 110, life: 1.8, rays: true, color: ITEM_COLOR[it.kind], dy: 110 });
+      this.fx.pop(p, { key: `item:${p.info.id}`, icon: ITEM_ART[it.kind], text: `ได้${ITEM_NAME[it.kind]}!`, size: 110, life: 1.8, rays: true, color: ITEM_COLOR[it.kind], dy: 110 });
       this.fx.burst(it.x, it.y, 26, [ITEM_COLOR[it.kind], "#ffffff", "#fff3c4"], 420, "star", 12);
       this.fx.kick(5);
-      this.send(p, { k: "note", text: `ได้${ITEM_NAME[it.kind]}!`, bad: false, icon: ITEM_EMOJI[it.kind] });
+      this.send(p, { k: "note", text: `ได้${ITEM_NAME[it.kind]}!`, bad: false, icon: ITEM_ART[it.kind] });
     }
 
     // peels
@@ -652,7 +654,7 @@ export class IceRun implements HostGame {
       const bx = sp > 20 ? p.x - (p.vx / sp) * (IR.BALL_R + 30) : p.x;
       const by = sp > 20 ? p.y - (p.vy / sp) * (IR.BALL_R + 30) : p.y;
       this.peels.push({ x: bx, y: by, life: IR.PEEL_LIFE, owner: p.info.id, safe: IR.PEEL_SAFE });
-      this.fx.pop(p, { key: `item:${p.info.id}`, icon: "🍌", text: "วางกับดัก!", size: 70, life: 1.1, color: ITEM_COLOR.banana });
+      this.fx.pop(p, { key: `item:${p.info.id}`, icon: "banana", text: "วางกับดัก!", size: 70, life: 1.1, color: ITEM_COLOR.banana });
       this.fx.burst(bx, by, 12, [ITEM_COLOR.banana, "#fff3c4"], 220, "dot", 7);
       this.ctx.playSound("dash");
     } else if (kind === "fan") {
@@ -660,7 +662,7 @@ export class IceRun implements HostGame {
       this.fx.wind(p.x, p.y);
       this.fx.kick(14);
       this.fx.flashScreen("#e9f6ff", 0.35);
-      this.fx.pop(p, { key: `item:${p.info.id}`, icon: "💨", text: "พัดลม!!", size: 120, life: 1.4, rays: true, color: ITEM_COLOR.fan, dy: 100 });
+      this.fx.pop(p, { key: `item:${p.info.id}`, icon: "fan", text: "พัดลม!!", size: 120, life: 1.4, rays: true, color: ITEM_COLOR.fan, dy: 100 });
       this.ctx.playSound("shrink");
       for (const o of this.players.values()) {
         if (o === p) continue;
@@ -672,16 +674,16 @@ export class IceRun implements HostGame {
         // the wind blows across the tray: cubes slide with it
         if (o.lid <= 0) for (const c of o.cubes) { c.vx += nx * IR.FAN_KICK * f * (0.8 + this.rand() * 0.4); c.vy += ny * IR.FAN_KICK * f * (0.8 + this.rand() * 0.4); }
         o.flash = 1;
-        this.send(o, { k: "note", text: `${p.info.name} เปิดพัดลมใส่!`, bad: true, icon: "💨" });
+        this.send(o, { k: "note", text: `${p.info.name} เปิดพัดลมใส่!`, bad: true, icon: "fan" });
       }
-      this.banner(`${p.info.name} เปิดพัดลม! 💨`, p.info.color);
+      this.banner(`${p.info.name} เปิดพัดลม!`, p.info.color, "fan");
     } else {
       p.lid = IR.LID_TIME;
-      this.fx.pop(p, { key: `item:${p.info.id}`, icon: "🫙", text: "ครอบถาด!", size: 96, life: 1.4, rays: true, color: ITEM_COLOR.lid, dy: 100 });
+      this.fx.pop(p, { key: `item:${p.info.id}`, icon: "lid", text: "ครอบถาด!", size: 96, life: 1.4, rays: true, color: ITEM_COLOR.lid, dy: 100 });
       this.fx.burst(p.x, p.y, 20, [ITEM_COLOR.lid, "#ffffff"], 300, "star", 10);
-      this.send(p, { k: "note", text: `ครอบถาด ${IR.LID_TIME} วิ ไม่หกแน่นอน`, bad: false, icon: "🫙" });
+      this.send(p, { k: "note", text: `ครอบถาด ${IR.LID_TIME} วิ ไม่หกแน่นอน`, bad: false, icon: "lid" });
       this.ctx.playSound("count", 2);
-      this.banner(`${p.info.name} ครอบถาดแล้ว 🫙`, p.info.color);
+      this.banner(`${p.info.name} ครอบถาดแล้ว`, p.info.color, "lid");
     }
   }
 
@@ -699,11 +701,11 @@ export class IceRun implements HostGame {
       }
     }
     this.ctx.playSound("hit", 0.8);
-    this.fx.pop(p, { key: `item:${p.info.id}`, icon: "💫", text: "ลื่น!!", size: 110, life: 1.5, rays: true, color: "#ff8a7a", dy: 100 });
+    this.fx.pop(p, { key: `item:${p.info.id}`, icon: "dizzy", text: "ลื่น!!", size: 110, life: 1.5, rays: true, color: "#ff8a7a", dy: 100 });
     this.fx.burst(p.x, p.y, 22, ["#ffd23f", "#ffffff", "#ff8a7a"], 380, "star", 12);
     this.fx.kick(12);
-    this.send(p, { k: "note", text: "เหยียบเปลือกกล้วย!", bad: true, icon: "🍌" });
-    this.banner(`${p.info.name} ลื่นเปลือกกล้วย! 🍌`, p.info.color);
+    this.send(p, { k: "note", text: "เหยียบเปลือกกล้วย!", bad: true, icon: "banana" });
+    this.banner(`${p.info.name} ลื่นเปลือกกล้วย!`, p.info.color, "peel");
   }
 
   /** leader x1 ... last place x SUPER_MAX_MULT, in steps of 0.5 */
@@ -716,9 +718,9 @@ export class IceRun implements HostGame {
 
   private warnSuper() {
     this.superWarned = true;
-    this.banner(`🤴 อีก ${IR.SUPER_WARN - IR.SUPER} วิ เจ้าสัวมา! ตุนน้ำแข็งไว้ได้เปรียบ`, "#ffd23f");
+    this.banner(`อีก ${IR.SUPER_WARN - IR.SUPER} วิ เจ้าสัวมา! ตุนน้ำแข็งไว้ได้เปรียบ`, "#ffd23f", "tycoon-smug");
     this.ctx.playSound("count", 3);
-    for (const p of this.players.values()) this.send(p, { k: "note", text: "เจ้าสัวกำลังมา! รีบตุนน้ำแข็ง", bad: false, icon: "🤴" });
+    for (const p of this.players.values()) this.send(p, { k: "note", text: "เจ้าสัวกำลังมา! รีบตุนน้ำแข็ง", bad: false, icon: "tycoon-smug" });
   }
 
   /** where the roaming ice bucket is (finale); starts on the left, goes round clockwise */
@@ -734,21 +736,21 @@ export class IceRun implements HostGame {
     // everyone else leaves: only เจ้าสัว's table stays
     for (const c of this.customers) {
       const t = IR.TABLES[c.table];
-      this.fx.pop(t, { icon: "🙇", text: "หลีกทางให้เจ้าสัว", size: 60, life: 1.4, color: "#fff3c4", dy: 30 });
+      this.fx.pop(t, { icon: "customer-happy", text: "หลีกทางให้เจ้าสัว", size: 60, life: 1.4, color: "#fff3c4", dy: 30 });
     }
     for (const t of IR.TABLES) this.fx.burst(t.x, t.y, 24, ["#c9ced3", "#fff3c4", "#ffffff"], 320, "dot", 12);
     this.customers = [];
     const rb = this.roamPos();
-    this.fx.pop(rb, { icon: "🧊", text: "ถังน้ำแข็งวิ่งแล้ว! ตามไปตัก", size: 90, life: 2.4, rays: true, color: "#9fe0ff", dy: 60 });
-    this.fx.pop({ x: B.x, y: B.y }, { icon: "🤴", text: "เจ้าสัวมาแล้ว!", size: 170, life: 2.6, rays: true, color: "#ffd23f", dy: 30 });
+    this.fx.pop(rb, { icon: "cube", text: "ถังน้ำแข็งวิ่งแล้ว! ตามไปตัก", size: 90, life: 2.4, rays: true, color: "#9fe0ff", dy: 60 });
+    this.fx.pop({ x: B.x, y: B.y }, { icon: "tycoon-smug", text: "เจ้าสัวมาแล้ว!", size: 170, life: 2.6, rays: true, color: "#ffd23f", dy: 30 });
     this.fx.burst(B.x, B.y, 120, ["#ffd23f", "#f2b632", "#fff3c4", "#ffffff", "#d9574a"], 1000, "confetti", 18);
     this.fx.kick(22);
     this.fx.flashScreen("#ffd23f", 0.7);
-    this.banner(`🤴 เจ้าสัวเหมาหมด! ยิ่งตามหลัง ยิ่งได้เยอะ (สูงสุด x${IR.SUPER_MAX_MULT})`, "#ffd23f");
+    this.banner(`เจ้าสัวเหมาหมด! ยิ่งตามหลัง ยิ่งได้เยอะ (สูงสุด x${IR.SUPER_MAX_MULT})`, "#ffd23f", "tycoon-smug");
     this.ctx.playSound("shrink");
     for (const p of this.players.values()) {
       p.fill = 0;
-      this.send(p, { k: "note", text: `เจ้าสัวให้คุณ x${this.superMult(p)}!`, bad: false, icon: "🤴" });
+      this.send(p, { k: "note", text: `เจ้าสัวให้คุณ x${this.superMult(p)}!`, bad: false, icon: "tycoon-smug" });
     }
     // something to fight with for the ones with empty trays
     while (this.items.length < IR.ITEM_MAX) this.spawnItem();
@@ -760,14 +762,14 @@ export class IceRun implements HostGame {
     p.cubes = [];
     p.score += pts;
     const B = IR.BUCKET;
-    this.fx.pop({ x: B.x, y: B.y }, { key: "super", icon: mult >= 2 ? "🤩" : "🤴", text: `+${pts}${mult > 1 ? ` (x${mult})` : ""}`, size: 120 + n * 6, life: 2, rays: true, color: mult >= 2 ? "#ffd23f" : "#fff3c4", dy: 90 });
+    this.fx.pop({ x: B.x, y: B.y }, { key: "super", icon: mult >= 2 ? "tycoon-wow" : "tycoon-smug", text: `+${pts}${mult > 1 ? ` (x${mult})` : ""}`, size: 120 + n * 6, life: 2, rays: true, color: mult >= 2 ? "#ffd23f" : "#fff3c4", dy: 90 });
     this.fx.burst(B.x, B.y, 30 + n * 8, ["#ffd23f", "#f2b632", "#fff3c4", p.info.color], 800, "confetti", 16);
     this.fx.kick(8 + n * 1.5);
     this.fx.flashScreen("#ffd23f", 0.3);
-    this.banner(mult >= 2 ? `🔥 ${p.info.name} ไล่ตาม! เจ้าสัวให้ x${mult} +${pts}` : `🤴 ${p.info.name} ส่งเจ้าสัว +${pts}`, p.info.color);
+    this.banner(mult >= 2 ? `${p.info.name} ไล่ตาม! เจ้าสัวให้ x${mult} +${pts}` : `${p.info.name} ส่งเจ้าสัว +${pts}`, p.info.color, mult >= 2 ? "tycoon-wow" : "tycoon-smug");
     this.ctx.playSound("bell");
     this.send(p, { k: "paid", pts });
-    this.send(p, { k: "note", text: `เจ้าสัวจ่าย +${pts}${mult > 1 ? ` (x${mult})` : ""}`, bad: false, icon: "🤩" });
+    this.send(p, { k: "note", text: `เจ้าสัวจ่าย +${pts}${mult > 1 ? ` (x${mult})` : ""}`, bad: false, icon: "tycoon-wow" });
   }
 
   /** เจ้าสัว on a gold stage over the closed bucket */
@@ -809,11 +811,11 @@ export class IceRun implements HostGame {
     ctx.stroke();
     // the man himself, bobbing, crown wobbling
     const bob = Math.sin(now / 220) * 6;
-    emoji(ctx, "🤴", B.x, B.y + bob, 130);
+    drawArt(ctx, "tycoon-smug", B.x, B.y - 6 + bob, 200);
     ctx.save();
     ctx.translate(B.x + 34, B.y - 48 + bob);
     ctx.rotate(Math.sin(now / 160) * 0.3);
-    emoji(ctx, "💰", 0, 0, 46);
+    drawArt(ctx, "moneybag", 62, 52, 70);
     ctx.restore();
     if (Math.random() < 0.3) {
       const a = Math.random() * Math.PI * 2;
@@ -828,16 +830,16 @@ export class IceRun implements HostGame {
     this.ctx.playSound("shrink");
     this.fx.kick(16);
     this.fx.flashScreen("#ff8a2a", 0.55);
-    this.banner(`⚡ ช่วงรีบ! ${IR.RUSH} วิสุดท้าย แต้ม x${IR.RUSH_MULT}`, "#ffd23f");
-    for (const p of this.players.values()) this.send(p, { k: "note", text: `ช่วงรีบ! แต้ม x${IR.RUSH_MULT}`, bad: false, icon: "⚡" });
+    this.banner(`ช่วงรีบ! ${IR.RUSH} วิสุดท้าย แต้ม x${IR.RUSH_MULT}`, "#ffd23f", "bolt");
+    for (const p of this.players.values()) this.send(p, { k: "note", text: `ช่วงรีบ! แต้ม x${IR.RUSH_MULT}`, bad: false, icon: "bolt" });
   }
 
   get rush() {
     return this.rushOn && this.phase === "playing";
   }
 
-  banner(text: string, color: string) {
-    this.banners.push({ text, color, t: 0 });
+  banner(text: string, color: string, icon?: Art) {
+    this.banners.push({ text, color, t: 0, icon });
     if (this.banners.length > 3) this.banners.shift();
   }
 
@@ -1001,7 +1003,7 @@ export class IceRun implements HostGame {
       ctx.stroke();
       ctx.setLineDash([]);
       if (Math.random() < 0.5) this.fx.burst(rb.x + (Math.random() - 0.5) * 120, rb.y + (Math.random() - 0.5) * 120, 1, ["#e8f7ff", "#9fd8ff"], 40, "dot", 6);
-      label(ctx, "🧊 ถังน้ำแข็ง ตามไปตัก!", rb.x, rb.y + IR.ROAM_R + 30, 24);
+      label(ctx, "ถังน้ำแข็ง ตามไปตัก!", rb.x, rb.y + IR.ROAM_R + 30, 24);
     }
     else label(ctx, this.superWarned && this.phase === "playing" && Math.floor(now / 200) % 2 ? "ตุนไว้! เจ้าสัวกำลังมา" : "ถังน้ำแข็ง", B.x, B.y + B.r + 34, 28);
 
@@ -1041,15 +1043,9 @@ export class IceRun implements HostGame {
       ctx.save();
       ctx.translate(t.x + jit, t.y);
       ctx.scale(inS, inS);
-      ctx.font = "60px sans-serif";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(c.vip ? (f > 0.25 ? "😎" : "😤") : f > 0.25 ? "🙂" : "😠", 0, 0);
-      if (c.vip) {
-        ctx.rotate(Math.sin(now / 250) * 0.15);
-        ctx.font = "44px sans-serif";
-        ctx.fillText("👑", 0, -48);
-      }
+      const face: Art = c.vip ? (f > 0.25 ? "vip-cool" : "vip-annoyed") : f > 0.25 ? "customer-happy" : "customer-angry";
+      drawArt(ctx, face, 0, -6, 132);
+      if (c.vip) drawArt(ctx, "crown", 0, -74, 58, Math.sin(now / 250) * 0.15);
       ctx.restore();
       // order bubble
       const bx = t.x, by = t.y - 120 - (1 - inS) * 30;
@@ -1063,8 +1059,14 @@ export class IceRun implements HostGame {
         ctx.stroke();
       }
       ctx.fillStyle = "#3b2618";
-      ctx.font = "bold 34px sans-serif";
-      ctx.fillText(c.vip ? `VIP 🧊 × ${c.want}` : `🧊 × ${c.want}`, bx, by + 2);
+      ctx.font = font(34);
+      ctx.textAlign = "left";
+      ctx.textBaseline = "middle";
+      const txt = c.vip ? `VIP × ${c.want}` : `× ${c.want}`;
+      const tw = ctx.measureText(txt).width, x0 = bx - (tw + 42) / 2;
+      drawArt(ctx, "cube", x0 + 17, by, 38);
+      ctx.fillText(txt, x0 + 40, by + 2);
+      ctx.textAlign = "center";
     });
 
     // splashes
@@ -1079,7 +1081,7 @@ export class IceRun implements HostGame {
     // peels and floor items
     for (const pe of this.peels) {
       ctx.globalAlpha = Math.min(1, pe.life / 2);
-      emoji(ctx, "🍌", pe.x, pe.y, 54);
+      drawArt(ctx, "peel", pe.x, pe.y, 78);
     }
     ctx.globalAlpha = 1;
     for (const it of this.items) {
@@ -1097,7 +1099,7 @@ export class IceRun implements HostGame {
       ctx.strokeStyle = "#f2c23a";
       ctx.lineWidth = 5;
       ctx.stroke();
-      emoji(ctx, ITEM_EMOJI[it.kind], it.x, it.y + bob, 46 * appear);
+      drawArt(ctx, ITEM_ART[it.kind], it.x, it.y + bob, 62 * appear);
     }
     // fan gusts
     for (const g of this.gusts) {
@@ -1141,8 +1143,8 @@ export class IceRun implements HostGame {
         ctx.stroke();
         ctx.globalAlpha = 1;
       }
-      if (p.item) emoji(ctx, ITEM_EMOJI[p.item], p.x + IR.BALL_R + 4, p.y - IR.BALL_R - 4, 30);
-      if (p.slip > 0) emoji(ctx, "💫", p.x, p.y - IR.BALL_R - 22, 32);
+      if (p.item) drawArt(ctx, ITEM_ART[p.item], p.x + IR.BALL_R + 6, p.y - IR.BALL_R - 6, 42);
+      if (p.slip > 0) drawArt(ctx, "dizzy", p.x, p.y - IR.BALL_R - 20, 64, p.spin * 0.3);
       // fill progress at the bucket
       if (p.fill > 0) {
         ctx.strokeStyle = "#fff";
@@ -1175,11 +1177,20 @@ export class IceRun implements HostGame {
     roundRect(ctx, IR.W / 2 - cw / 2, 12, cw, 70, 20);
     ctx.fill();
     ctx.fillStyle = left <= 10 && this.phase === "playing" && Math.floor(now / 250) % 2 ? "#ffe27a" : "#fff";
-    ctx.font = "bold 48px sans-serif";
+    ctx.font = font(50);
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     const clock = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`;
-    ctx.fillText(this.rush ? `⚡ ${clock} x${IR.RUSH_MULT}` : clock, IR.W / 2, 48);
+    if (this.superOn) {
+      drawArt(ctx, "tycoon-smug", IR.W / 2 - 74, 47, 58);
+      ctx.fillText(clock, IR.W / 2 + 18, 48);
+    } else if (this.rush) {
+      drawArt(ctx, "bolt", IR.W / 2 - 110, 47, 52);
+      ctx.fillText(`${clock} x${IR.RUSH_MULT}`, IR.W / 2 + 18, 48);
+    } else {
+      drawArt(ctx, "clock", IR.W / 2 - 74, 47, 46);
+      ctx.fillText(clock, IR.W / 2 + 18, 48);
+    }
 
     // callouts under the clock, newest at the top, popping in
     this.banners.forEach((b, i) => {
@@ -1189,16 +1200,18 @@ export class IceRun implements HostGame {
       const size = (k === 0 ? 46 : 34) * (0.7 + 0.3 * pop);
       const y = 130 + k * 62;
       ctx.globalAlpha = fade;
-      ctx.font = `900 ${size}px sans-serif`;
-      const tw = ctx.measureText(b.text).width;
+      ctx.font = font(size);
+      const ic = b.icon ? size * 1.5 : 0; // art at the left of the text
+      const tw = ctx.measureText(b.text).width + ic;
       ctx.fillStyle = "#3b2618e6";
       roundRect(ctx, IR.W / 2 - tw / 2 - 26, y - size * 0.75, tw + 52, size * 1.5, size * 0.75);
       ctx.fill();
       ctx.strokeStyle = b.color;
       ctx.lineWidth = 5;
       ctx.stroke();
+      if (b.icon) drawArt(ctx, b.icon, IR.W / 2 - tw / 2 + ic / 2 - 6, y, size * 1.9);
       ctx.fillStyle = "#fff";
-      ctx.fillText(b.text, IR.W / 2, y);
+      ctx.fillText(b.text, IR.W / 2 + ic / 2, y + 2);
     });
     ctx.globalAlpha = 1;
 
@@ -1218,11 +1231,12 @@ export class IceRun implements HostGame {
         circle(ctx, x0 + 22 * u, y, 9 * u);
         ctx.fill();
         ctx.fillStyle = "#3b2618";
-        ctx.font = `${i === 0 && p.score > 0 ? 900 : 700} ${19 * u}px sans-serif`;
+        ctx.font = font(20 * u);
         ctx.textAlign = "left";
         ctx.textBaseline = "middle";
-        const crown = i === 0 && p.score > 0 ? "👑 " : `${i + 1}. `;
-        ctx.fillText(`${crown}${p.info.name}`.slice(0, 18), x0 + 40 * u, y);
+        const lead = i === 0 && p.score > 0;
+        if (lead) drawArt(ctx, "crown", x0 + 52 * u, y - 1, 30 * u);
+        ctx.fillText(`${lead ? "" : `${i + 1}. `}${p.info.name}`.slice(0, 16), x0 + (lead ? 70 : 40) * u, y + 1);
         ctx.textAlign = "right";
         ctx.fillText(String(p.score), x0 + rw - 16 * u, y);
         if (this.superOn && this.phase === "playing") {
@@ -1234,7 +1248,7 @@ export class IceRun implements HostGame {
           ctx.fill();
           ctx.fillStyle = "#3b2618";
           ctx.textAlign = "center";
-          ctx.font = `900 ${17 * u}px sans-serif`;
+          ctx.font = font(17 * u);
           ctx.fillText(`x${m}`, bx + bw / 2, y + 1);
         }
       });
@@ -1258,7 +1272,10 @@ export class IceRun implements HostGame {
         const r = this.ranking()[0]?.map((id) => this.players.get(id)!) ?? [];
         const k = backOut(Math.min(1, (IR.END_TIME - this.timer) / 0.4));
         bigText(ctx, "หมดเวลา!", w / 2, h * 0.42, h * 0.15 * k, "#fff");
-        if (r.length && r[0].score > 0) bigText(ctx, `🏆 ${r.map((p) => p.info.name).join(", ")} · ${r[0].score} แต้ม`, w / 2, h * 0.58, h * 0.06 * k, "#ffd23f");
+        if (r.length && r[0].score > 0) {
+          drawArt(ctx, "trophy", w / 2, h * 0.7, h * 0.16 * k);
+          bigText(ctx, `${r.map((p) => p.info.name).join(", ")} · ${r[0].score} แต้ม`, w / 2, h * 0.56, h * 0.06 * k, "#ffd23f");
+        }
       }
     }
     if (this.goT > 0) {
@@ -1270,18 +1287,11 @@ export class IceRun implements HostGame {
   }
 }
 
-const ITEM_EMOJI: Record<IceItem, string> = { banana: "🍌", fan: "💨", lid: "🫙" };
+const ITEM_ART: Record<IceItem, Art> = { banana: "banana", fan: "fan", lid: "lid" };
 const ITEM_NAME: Record<IceItem, string> = { banana: "เปลือกกล้วย", fan: "พัดลม", lid: "ฝาครอบ" };
 const ITEM_COLOR: Record<IceItem, string> = { banana: "#ffd23f", fan: "#9fe0ff", lid: "#b8f0c8" };
 
 /* ---------------- drawing helpers ---------------- */
-
-function emoji(ctx: CanvasRenderingContext2D, e: string, x: number, y: number, px: number) {
-  ctx.font = `${px}px sans-serif`;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText(e, x, y);
-}
 
 function circle(ctx: CanvasRenderingContext2D, x: number, y: number, r: number) {
   ctx.beginPath();
@@ -1308,7 +1318,7 @@ function cube(ctx: CanvasRenderingContext2D, x: number, y: number, size: number,
 }
 
 function label(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, px: number) {
-  ctx.font = `bold ${px}px sans-serif`;
+  ctx.font = font(px);
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.lineWidth = 5;
@@ -1327,7 +1337,7 @@ function mixWhite(hex: string, t: number) {
 
 function bigText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, px: number, color: string) {
   if (px < 2) return;
-  ctx.font = `900 ${Math.round(px)}px sans-serif`;
+  ctx.font = font(Math.round(px));
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.lineJoin = "round";

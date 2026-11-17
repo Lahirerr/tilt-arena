@@ -1,0 +1,3 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="0 0 300 300"><defs><radialGradient id="sta" cx=".38" cy=".32" r=".8"><stop offset="0" stop-color="#fff6c0"/><stop offset=".55" stop-color="#f2c23a"/><stop offset="1" stop-color="#d0901c"/></radialGradient></defs><ellipse cx="150" cy="262" rx="90" ry="12" fill="#1d1a16" opacity=".2"/>
+<path d="M150.0,28.0 L183.3,100.2 L262.2,109.5 L203.9,163.5 L219.4,241.5 L150.0,202.6 L80.6,241.5 L96.1,163.5 L37.8,109.5 L116.7,100.2 Z" fill="url(#sta)" stroke="#9a6a12" stroke-width="3" stroke-linejoin="round"/>
+<path d="M108,104 L130,72" stroke="#ffffff" stroke-width="8" stroke-linecap="round" opacity=".75"/></svg>
