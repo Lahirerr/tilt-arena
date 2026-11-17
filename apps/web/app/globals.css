@@ -376,3 +376,9 @@ input {
 .pass-row button { flex: 1; }
 .pass-row .pass-ok { background: var(--paper-ink); color: var(--paper); }
 @keyframes pass-shake { 25% { translate: -8px 0; } 75% { translate: 8px 0; } }
+
+/* ส่งน้ำแข็ง: painted art in place of emoji */
+.ir-pic { height: 1.25em; width: auto; vertical-align: -0.3em; margin: 0 0.12em; }
+.ir-end-pic { width: 34vmin; height: auto; filter: drop-shadow(0 8px 0 #0004); }
+img.ir-burst-icon { width: 46vmin; height: auto; }
+img.ir-item-icon { width: 56px; height: 56px; }

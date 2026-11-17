@@ -7,6 +7,7 @@ import math, os, random, sys
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, os.path.join(ROOT, ".claude", "skills", "ddjoinjoy-art-style", "scripts"))
+sys.path.insert(0, os.path.dirname(__file__))
 from painted_svg import wobble, smooth_path, strokes, corner, svg  # noqa: E402
 
 OUT = os.path.join(ROOT, "assets", "svg")
@@ -117,6 +118,15 @@ def banana():
 
 PIECES = {"ir-cube": ice_cube, "ir-banana": banana}
 
+from ir_people import PEOPLE, character  # noqa: E402
+
+for _name, (_who, _expr) in PEOPLE.items():
+    PIECES[_name] = (lambda w, e: lambda: character(w, e))(_who, _expr)
+
+from ir_props import PROPS  # noqa: E402
+
+PIECES.update(PROPS)
+
 if __name__ == "__main__":
     os.makedirs(OUT, exist_ok=True)
     only = sys.argv[1:]
@@ -126,3 +136,12 @@ if __name__ == "__main__":
         with open(os.path.join(OUT, f"{name}.svg"), "w") as f:
             f.write(fn())
         print("wrote", name)
+    # the game serves them from apps/web/public/ice-run/<name without ir->.svg
+    import shutil
+    pub = os.path.join(ROOT, "apps", "web", "public", "ice-run")
+    os.makedirs(pub, exist_ok=True)
+    for name in PIECES:
+        shutil.copy(os.path.join(OUT, f"{name}.svg"), os.path.join(pub, f"{name[3:]}.svg"))
+    # how-to icons on the hub cards / intro are served from /ui/<name>.svg
+    for name in ("ir-cube", "ir-splash", "ir-customer-happy", "ir-crown"):
+        shutil.copy(os.path.join(OUT, f"{name}.svg"), os.path.join(ROOT, "apps", "web", "public", "ui", f"{name}.svg"))

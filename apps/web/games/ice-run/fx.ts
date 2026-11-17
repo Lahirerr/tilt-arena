@@ -4,10 +4,12 @@
  * Pure state + canvas drawing; nothing touches the DOM, so the sim can run it headless.
  */
 
+import { drawArt, font, type Art } from "./art";
+
 type Anchor = { x: number; y: number };
 
 export interface PopOpts {
-  icon?: string;
+  icon?: Art;
   text?: string;
   color?: string; // text colour / ray colour
   size?: number; // icon px (text is ~45 % of it)
@@ -18,7 +20,7 @@ export interface PopOpts {
 }
 
 interface Pop extends Required<Omit<PopOpts, "icon" | "text" | "key">> {
-  icon: string;
+  icon: Art | null;
   text: string;
   key: string;
   at: Anchor; // followed while alive (a player), or a fixed point
@@ -48,7 +50,7 @@ export class Fx {
     if (key) this.pops = this.pops.filter((p) => p.key !== key);
     this.pops.push({
       at, key, t: 0,
-      icon: o.icon ?? "", text: o.text ?? "", color: o.color ?? "#fff",
+      icon: o.icon ?? null, text: o.text ?? "", color: o.color ?? "#fff",
       size: o.size ?? 60, life: o.life ?? 1.4, rays: o.rays ?? false, dy: o.dy ?? 70,
     });
     if (this.pops.length > 24) this.pops.shift();
@@ -211,15 +213,13 @@ export class Fx {
         ctx.save();
         ctx.translate(x, y);
         ctx.rotate(Math.sin(p.t * 9) * 0.12 * (1 - Math.min(1, e * 1.5)));
-        ctx.scale(sc, sc);
-        ctx.font = `${p.size}px sans-serif`;
-        ctx.fillText(p.icon, 0, 2);
+        drawArt(ctx, p.icon, 0, 0, p.size * 1.25 * sc);
         ctx.restore();
       }
       if (p.text) {
         const px = Math.round(Math.max(26, p.size * 0.46) * sc);
         const ty = p.icon ? y + p.size * 0.62 * sc + px * 0.55 : y;
-        ctx.font = `900 ${px}px sans-serif`;
+        ctx.font = font(px);
         ctx.lineJoin = "round";
         ctx.lineWidth = px * 0.24;
         ctx.strokeStyle = "#2b1a10";

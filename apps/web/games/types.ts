@@ -21,6 +21,8 @@ export interface GameMeta {
   sensors: ("orientation" | "motion")[];
   /** set = locked for admin testing: picking it asks for this code first (client-side gate only) */
   passcode?: string;
+  /** CSS font-family for this game's phone screens (e.g. Sriracha), else the app font */
+  font?: string;
 }
 
 export interface GameContext {
