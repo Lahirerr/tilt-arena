@@ -318,15 +318,17 @@ export default function HubHost() {
       {(hub.screen === "playing" || hub.screen === "results") && (
         <div className="hud">
           <div className="room-tag">{hub.code}</div>
-          <div className="scoreboard">
-            {hub.players.map((p) => (
-              <div key={p.id} style={{ opacity: gameRef.current?.isOut?.(p.id) ? 0.4 : 1 }}>
-                <span className="dot" style={{ background: p.color }} />
-                <span style={{ flex: 1 }}>{p.name}</span>
-                <span>{hub.scores[p.id] ?? 0}</span>
-              </div>
-            ))}
-          </div>
+          {!(hub.screen === "playing" && gameRef.current?.ownScoreboard) && (
+            <div className="scoreboard">
+              {hub.players.map((p) => (
+                <div key={p.id} style={{ opacity: gameRef.current?.isOut?.(p.id) ? 0.4 : 1 }}>
+                  <span className="dot" style={{ background: p.color }} />
+                  <span style={{ flex: 1 }}>{p.name}</span>
+                  <span>{hub.scores[p.id] ?? 0}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

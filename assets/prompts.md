@@ -35,3 +35,52 @@ Checks when it comes back:
 - the centre is calm enough for the arena and the balls to read on top (compare against `assets/preview.png`)
 - colour temperature and brushwork match `scene-bg.jpg`, not photo-like or 3D
 - upscale / crop to exactly 1920×1080
+
+---
+
+# Ice Run (ส่งน้ำแข็ง) — characters (Lane B)
+
+The game is seen from above, but customers sit at round tables and are shown as a **head-and-shoulders bust facing the camera**, drawn about 120 px tall on the big screen. They must read at that size: big clear face, simple shapes.
+Make the **master** of each character first, then each expression from it with Change/Preserve, so the head stays in the same place (the game swaps images in place).
+Put the PNGs in `assets/raster/` with the file names below and ask Claude to "เช็กภาพนี้ตามสกิล".
+
+Attach to every prompt: Image 1 = `.claude/skills/ddjoinjoy-art-style/references/raster/character-sip.png`, Image 2 = `.claude/skills/ddjoinjoy-art-style/references/raster/character-grumpy.png`, Image 3 = `assets/ir-preview.png`
+
+## 1. ir-customer-happy — regular customer (master)
+
+```
+Purpose: A customer waiting at a table in a party game set in a Thai beer garden (ลานเบียร์) at night. Shown small (about 120 px) on a TV screen, sitting at a round table, waiting for ice to be delivered.
+Subject: A friendly Thai office worker in his 30s, head and shoulders, facing the camera, short black hair, rolled-up light blue shirt, holding up an empty beer glass with one hand as if asking for ice, cheerful hopeful smile.
+Reference roles: Image 1 and Image 2 = style reference (match brushwork, outlines, colour, how a character is painted). Image 3 = props from the same game (ice cube, banana) so the character matches them. Do not copy their subjects.
+Style: Warm hand-painted 2D illustration with dimensional form, fine brushwork, and material-specific textures. Gouache feel, controlled edges, thin outlines in a darker shade of each object's own colour, natural vivid colour (not sepia), light from upper left.
+Materials: skin with soft warm gouache shading; cotton shirt with soft folds; glass with bright edge highlights and a vertical white streak.
+Composition: square, bust centred, head in the upper half, big readable face and expression, a little padding all round. Facing the camera.
+Lighting: warm evening light from string lights, from upper left.
+Output: 1024x1024, PNG, RGBA, transparent background, alpha = 0 outside the subject.
+Exclusions: no text, no letters, no logos, no watermark, no extra props, no table, no background, no frame or border.
+```
+
+Variants (same chat, attach the master as Image 4):
+- `ir-customer-angry` — `Change: expression only: impatient and annoyed, frowning, tapping the empty glass, a small sweat drop. Preserve: same character, same head position and size, same clothes, same framing, transparent background.`
+- `ir-customer-yum` — `Change: expression only: delighted, eyes closed in a big happy smile, glass now full of ice and beer. Preserve: same character, same head position and size, same clothes, same framing, transparent background.`
+
+## 2. ir-vip-cool — VIP customer (master)
+
+Same prompt as 1, with:
+```
+Subject: A flashy Thai VIP customer in his 40s, head and shoulders, facing the camera, slicked-back hair, dark sunglasses, shiny gold-patterned silk shirt, a thin gold necklace, holding up a crystal glass, confident cool smirk.
+Materials: silk shirt with soft sheen and gold print; gold chain with crisp highlights; sunglasses as dark glass with a white streak; skin with soft warm gouache shading.
+```
+Variants: `ir-vip-annoyed` (Change: lowers the sunglasses, unimpressed frown), `ir-vip-wow` (Change: sunglasses pushed up, starry-eyed amazed grin, glass full of ice).
+
+## 3. ir-tycoon-smug — เจ้าสัว, the final boss customer (master)
+
+Same prompt as 1, with:
+```
+Purpose: The final boss customer of a party game in a Thai beer garden: a rich tycoon (เจ้าสัว) who appears in the last 10 seconds on a red-carpet stage in the middle of the screen. Shown about 220 px tall.
+Subject: A plump, jolly Thai-Chinese tycoon in his 60s, head and shoulders, facing the camera, round face, neat grey hair, small round glasses, red silk mandarin-collar shirt with gold dragon embroidery, a chunky gold watch, holding up a big ice bucket glass with one hand and a fan of banknotes in the other, smug satisfied smile.
+Materials: silk with sheen and embroidered gold thread; gold watch with crisp highlights; paper banknotes (matte, slightly irregular edges); glass with bright edge highlights.
+```
+Variants: `ir-tycoon-wow` (Change: expression only: laughing out loud with joy, throwing the banknotes up). 
+
+Checks when they come back: alpha really 0 outside; face readable at 120 px; brushwork and colour match Image 1–2; head in the same place across expressions.

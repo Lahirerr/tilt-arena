@@ -49,6 +49,8 @@ export interface HostGame {
   dispose(): void;
   /** optional: dims this player on the host scoreboard */
   isOut?(id: string): boolean;
+  /** true when the game draws its own live scoreboard: the hub hides its room-points one while playing */
+  ownScoreboard?: boolean;
 }
 
 /** phone side */

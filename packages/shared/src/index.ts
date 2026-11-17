@@ -10,6 +10,7 @@
 
 export * from "./games/tilt-arena";
 export * from "./games/ghost-night";
+export * from "./games/ice-run";
 export * from "./sensors";
 
 export const MAX_PLAYERS = 8;
@@ -30,8 +31,8 @@ export const PLAYER_COLORS = [
 ] as const;
 
 /** every game in the hub; add one here + one line in apps/web/hub/registry.ts */
-export type GameId = "tilt-arena" | "ghost-night";
-export const GAME_IDS: readonly GameId[] = ["tilt-arena", "ghost-night"];
+export type GameId = "tilt-arena" | "ghost-night" | "ice-run";
+export const GAME_IDS: readonly GameId[] = ["tilt-arena", "ghost-night", "ice-run"];
 
 export type Role = "host" | "player";
 
