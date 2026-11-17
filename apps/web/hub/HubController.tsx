@@ -1,5 +1,6 @@
 "use client";
 
+import { usePasscodeGate } from "./PasscodeGate";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { GameId, HubScreen, PlayerInfo, PlayerToServer, ServerToPlayer } from "@tilt/shared";
 import { requestSensors } from "@/lib/sensors/permissions";
@@ -21,6 +22,7 @@ interface HubView {
  * While a game runs it hands the screen to that game's Controller.
  */
 export default function HubController({ code }: { code: string }) {
+  const { askCode, gate } = usePasscodeGate();
   const [stage, setStage] = useState<Stage>("form");
   const [name, setName] = useState("");
   const [me, setMe] = useState<PlayerInfo | null>(null);
@@ -145,6 +147,7 @@ export default function HubController({ code }: { code: string }) {
 
   return (
     <main className="pad" style={{ background: me.color }}>
+      {gate}
       <div className="pad-top">
         <span>{me.name}{hub.vip ? " 👑" : ""}</span>
         <span>ห้อง {code}</span>
@@ -163,11 +166,11 @@ export default function HubController({ code }: { code: string }) {
             {GAME_LIST.map((g) => {
               const missing = hub.missing[g.meta.id] ?? 0;
               return (
-                <button key={g.meta.id} className="game-pick" disabled={missing > 0} onClick={() => sendHub({ t: "pick", game: g.meta.id })}>
+                <button key={g.meta.id} className="game-pick" disabled={missing > 0} onClick={() => askCode(g.meta, () => sendHub({ t: "pick", game: g.meta.id }))}>
                   {g.meta.howTo[0]?.icon && <img src={`/ui/${g.meta.howTo[0].icon}.svg`} alt="" draggable={false} />}
                   <span>
                     <b>{g.meta.title}</b>
-                    <small>{missing > 0 ? `ขาดอีก ${missing} คน` : g.meta.tagline}</small>
+                    <small>{missing > 0 ? `ขาดอีก ${missing} คน` : g.meta.passcode ? "🔒 สำหรับแอดมินทดสอบ" : g.meta.tagline}</small>
                   </span>
                 </button>
               );

@@ -19,6 +19,8 @@ export interface GameMeta {
   supportsBots: boolean;
   lateJoin: boolean; // can someone join mid-game?
   sensors: ("orientation" | "motion")[];
+  /** set = locked for admin testing: picking it asks for this code first (client-side gate only) */
+  passcode?: string;
 }
 
 export interface GameContext {

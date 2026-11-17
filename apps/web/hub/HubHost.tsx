@@ -1,5 +1,6 @@
 "use client";
 
+import { usePasscodeGate } from "./PasscodeGate";
 import { useEffect, useReducer, useRef, useState } from "react";
 import QRCode from "qrcode";
 import {
@@ -61,6 +62,7 @@ const eligible = (s: HubState, g: GameEntry) => s.players.filter((p) => g.meta.s
 const missingFor = (s: HubState, g: GameEntry) => Math.max(0, g.meta.minPlayers - eligible(s, g).length);
 
 export default function HubHost() {
+  const { askCode, gate } = usePasscodeGate();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const gameRef = useRef<HostGame | null>(null);
@@ -274,6 +276,8 @@ export default function HubHost() {
     let botN = 0;
     const onKey = (e: KeyboardEvent) => {
       sfx.unlock();
+      // typing in a field (the admin passcode) is not a game shortcut
+      if (e.target instanceof HTMLElement && e.target.closest("input, textarea, .pass-gate")) return;
       if (e.code === "KeyM") setMuted(sfx.toggleMute());
       if (e.code === "KeyB" && hub.screen === "lobby" && hub.players.length < MAX_PLAYERS) {
         botN++;
@@ -314,6 +318,7 @@ export default function HubHost() {
   return (
     <main className="host">
       <canvas ref={canvasRef} />
+      {gate}
 
       {(hub.screen === "playing" || hub.screen === "results") && (
         <div className="hud">
@@ -420,12 +425,12 @@ export default function HubHost() {
               const missing = missingFor(hub, g);
               return (
                 <li key={g.meta.id}>
-                  <button disabled={missing > 0} onClick={() => act?.pick(g.meta.id)}>
+                  <button disabled={missing > 0} onClick={() => askCode(g.meta, () => act?.pick(g.meta.id))}>
                     {g.meta.howTo[0]?.icon && <img src={`/ui/${g.meta.howTo[0].icon}.svg`} alt="" draggable={false} />}
                     <b>{g.meta.title}</b>
                     <small>{g.meta.tagline}</small>
                     <em>
-                      {missing > 0 ? `ขาดอีก ${missing} คน` : `${g.meta.minPlayers}-${g.meta.maxPlayers} คน · คลิกเพื่อเล่น`}
+                      {missing > 0 ? `ขาดอีก ${missing} คน` : `${g.meta.minPlayers}-${g.meta.maxPlayers} คน · ${g.meta.passcode ? "🔒 แอดมินเท่านั้น" : "คลิกเพื่อเล่น"}`}
                     </em>
                   </button>
                 </li>
