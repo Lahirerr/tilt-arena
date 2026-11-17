@@ -14,4 +14,5 @@ export const ghostMeta: GameMeta = {
   supportsBots: true, // demo only: so the rules can be tried with fewer people
   lateJoin: false,
   sensors: ["orientation", "motion"],
+  passcode: "0901", // admin testing only for now
 };
