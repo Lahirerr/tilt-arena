@@ -6,7 +6,7 @@
 
 export const ART = [
   "cube", "banana", "peel", "fan", "lid", "crown", "moneybag", "star", "dizzy", "splash", "bolt", "trophy", "clock",
-  "customer-happy", "customer-angry", "customer-yum", "vip-cool", "vip-annoyed", "vip-wow", "tycoon-smug", "tycoon-wow",
+  "customer-happy", "customer-angry", "customer-yum", "vip-cool", "vip-annoyed", "vip-wow", "tycoon-smug", "tycoon-wow", "tray", "table-bg",
 ] as const;
 export type Art = (typeof ART)[number];
 

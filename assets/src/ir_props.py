@@ -215,3 +215,63 @@ PROPS = {
     "ir-peel": peel, "ir-fan": fan, "ir-lid": lid, "ir-crown": crown, "ir-moneybag": moneybag, "ir-star": star,
     "ir-dizzy": dizzy, "ir-splash": splash, "ir-bolt": bolt, "ir-trophy": trophy, "ir-clock": clock,
 }
+
+
+# ---------------------------------------------------------------- phone: the tray and the table under it
+def tray():
+    """stainless round tray seen from straight above (the phone IS this tray).
+    Cubes live inside 0.42 of the half-width from the centre, so the flat floor reaches ~0.44."""
+    rnd = random.Random(14)
+    W2 = 600
+    c, R = 300, 292
+    defs = '''<linearGradient id="tr" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#6b757e"/><stop offset=".22" stop-color="#f4f7f9"/><stop offset=".5" stop-color="#aab4bb"/><stop offset=".76" stop-color="#dccfb8"/><stop offset="1" stop-color="#5d666e"/></linearGradient>
+<linearGradient id="tf" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f3f6f8"/><stop offset=".45" stop-color="#d4dbe0"/><stop offset=".7" stop-color="#e6e2da"/><stop offset="1" stop-color="#aeb7be"/></linearGradient>
+<linearGradient id="tw" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5b656d"/><stop offset=".55" stop-color="#9aa5ad"/><stop offset="1" stop-color="#e3e8eb"/></linearGradient>'''
+    b = [f'<circle cx="{c + 10}" cy="{c + 14}" r="{R - 4}" fill="#1d1a16" opacity=".35"/>']
+    rim = [(c + R * math.cos(2 * math.pi * i / 72), c + R * math.sin(2 * math.pi * i / 72)) for i in range(72)]
+    b.append(f'<path id="L-rim" d="{smooth_path(wobble(rim, .25, rnd))}" fill="url(#tr)" stroke="#424b52" stroke-width="4"/>')
+    b.append(f'<circle cx="{c}" cy="{c}" r="{R - 26}" fill="url(#tw)" stroke="#4b555d" stroke-width="2.5"/>')  # the sloped wall
+    floor = [(c + (R - 46) * math.cos(2 * math.pi * i / 72), c + (R - 46) * math.sin(2 * math.pi * i / 72)) for i in range(72)]
+    b.append(f'<path id="L-floor" d="{smooth_path(floor)}" fill="url(#tf)" stroke="#7d8790" stroke-width="2"/>')
+    # brushed steel: long faint strokes across the floor, a few warm reflections
+    b.append(strokes(floor, rnd, 160, ["#ffffff", "#8e98a0", "#e8dccb"], length=(40, 110), width=(2, 5), angle=(-30, -20), opacity=(.05, .14)))
+    # concentric lathe rings
+    for r in (R - 70, R - 120, R - 170, R - 220):
+        b.append(f'<circle cx="{c}" cy="{c}" r="{r}" fill="none" stroke="#ffffff" stroke-width="2" opacity=".25"/>')
+        b.append(f'<circle cx="{c}" cy="{c}" r="{r + 2}" fill="none" stroke="#7d8790" stroke-width="1.2" opacity=".2"/>')
+    # rim highlights, light from upper left
+    b.append(f'<path d="M{c - 250},{c - 90} A{R - 13},{R - 13} 0 0 1 {c - 90},{c - 250}" stroke="#ffffff" stroke-width="9" stroke-linecap="round" fill="none" opacity=".85"/>')
+    b.append(f'<path d="M{c + 200},{c + 170} A{R - 13},{R - 13} 0 0 1 {c + 120},{c + 240}" stroke="#ffffff" stroke-width="4" stroke-linecap="round" fill="none" opacity=".45"/>')
+    b.append(f'<path d="M{c - 170},{c - 60} A{R - 90},{R - 90} 0 0 1 {c - 60},{c - 170}" stroke="#ffffff" stroke-width="16" stroke-linecap="round" fill="none" opacity=".35"/>')
+    return svg(W2, W2, defs, "\n".join(b))
+
+
+def table_bg():
+    """the wooden beer-garden table under the tray: portrait, planks running top to bottom (CSS: cover)"""
+    rnd = random.Random(21)
+    W2, H2 = 450, 975
+    wood = ["#8a5a32", "#7c4f2b", "#93643a", "#83552f", "#8e5d34"]
+    defs = '<radialGradient id="vig" cx=".5" cy=".45" r=".75"><stop offset=".55" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#1a0d06" stop-opacity=".55"/></radialGradient>'
+    b = []
+    pw = W2 / 5
+    for i in range(5):
+        x = i * pw
+        col = wood[i]
+        b.append(f'<rect x="{x:.1f}" y="0" width="{pw:.1f}" height="{H2}" fill="{col}"/>')
+        poly = [(x + 4, 0), (x + pw - 4, 0), (x + pw - 4, H2), (x + 4, H2)]
+        b.append(strokes(poly, rnd, 140, [shade(col, .3), shade(col, -.35), "#a87448"], length=(40, 140), width=(1.5, 4), angle=(88, 92), opacity=(.15, .35)))
+        for _ in range(2):  # knots
+            kx, ky = x + rnd.uniform(18, pw - 18), rnd.uniform(60, H2 - 60)
+            b.append(f'<ellipse cx="{kx:.0f}" cy="{ky:.0f}" rx="7" ry="13" fill="{shade(col, -.4)}" opacity=".6"/><ellipse cx="{kx:.0f}" cy="{ky:.0f}" rx="12" ry="22" fill="none" stroke="{shade(col, -.3)}" stroke-width="2" opacity=".4"/>')
+        b.append(f'<path d="M{x:.1f},0 L{x:.1f},{H2}" stroke="#3e2410" stroke-width="4" opacity=".75"/>')
+        b.append(f'<path d="M{x + 3:.1f},0 L{x + 3:.1f},{H2}" stroke="#c08a55" stroke-width="1.5" opacity=".35"/>')
+    # a few beer rings and a bottle cap on the table
+    for _ in range(5):
+        x, y = rnd.uniform(40, W2 - 40), rnd.uniform(60, H2 - 60)
+        b.append(f'<ellipse cx="{x:.0f}" cy="{y:.0f}" rx="{rnd.uniform(22, 30):.0f}" ry="{rnd.uniform(20, 28):.0f}" fill="none" stroke="#3e2410" stroke-width="4" opacity=".18"/>')
+    b.append(f'<rect width="{W2}" height="{H2}" fill="url(#vig)"/>')
+    return svg(W2, H2, defs, "\n".join(b))
+
+
+PROPS["ir-tray"] = tray
+PROPS["ir-table-bg"] = table_bg
