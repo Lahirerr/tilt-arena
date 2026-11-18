@@ -24,7 +24,7 @@ export default function IceController({ send, subscribe }: ControllerProps) {
   const [phase, setPhase] = useState<IcePhase>("countdown");
   const [text, setText] = useState<string | undefined>();
   const [cubes, setCubes] = useState<number[]>([]);
-  const [info, setInfo] = useState({ score: 0, left: 120, hint: "", item: null as IceItem | null, lid: 0, rush: false, rank: 1, boss: 0 });
+  const [info, setInfo] = useState({ score: 0, left: 60, hint: "", item: null as IceItem | null, lid: 0, rush: false, rank: 1, boss: 0 });
   const [note, setNote] = useState<{ at: number; text: string; bad: boolean } | null>(null);
   const [pop, setPop] = useState<{ at: number; text: string; good: boolean } | null>(null);
   /** the big full-screen moment: an item in your hands, a banana under your feet... */
@@ -158,11 +158,11 @@ export default function IceController({ send, subscribe }: ControllerProps) {
   if (phase === "end") {
     return (
       <>
-        <div className="pad-tint" style={{ background: "#2f5f86" }} />
+        <div className="pad-tint ir-bg" />
         <div className="pad-status">
-          <div>
-            <Pic k="cube" className="ir-end-pic" />
-            <div className="small">{text ?? ""}</div>
+          <div className="ir-end">
+            <Pic k={text?.startsWith("ชนะ") ? "trophy" : "cube"} className="ir-end-pic" />
+            {text && <div className="ir-end-text">{text}</div>}
           </div>
         </div>
       </>
@@ -187,7 +187,9 @@ export default function IceController({ send, subscribe }: ControllerProps) {
 
   return (
     <>
-      <div className="pad-tint" style={{ background: info.boss ? "#7a2a14" : info.rush ? "#b4501c" : "#2f5f86" }} />
+      <div className="pad-tint ir-bg">
+        <div className={`ir-mood ${info.boss ? "boss" : info.rush ? "rush" : ""}`} />
+      </div>
       {flashOn && <div key={flash.at} className="ir-flash" style={{ background: flash.color }} />}
       {burstOn && (
         <div key={burst.at} className={`ir-burst ${burst.bad ? "bad" : ""}`}>
@@ -199,15 +201,16 @@ export default function IceController({ send, subscribe }: ControllerProps) {
         </div>
       )}
       <div className="ir-top">
-        <span>
+        <span className="ir-chip">
           <Pic k="star" /> {info.score}{" "}
           <small className="ir-rank">
             {info.rank === 1 && info.score > 0 && <Pic k="crown" />}ที่ {info.rank}
           </small>
         </span>
-        <span className={info.rush ? "ir-rush" : ""}>
+        <span className={`ir-chip ${info.rush ? "ir-rush" : ""}`}>
           <Pic k={info.boss ? "tycoon-smug" : info.rush ? "bolt" : "clock"} />
           {info.rush && !info.boss ? `x2 · ${info.left}` : info.left}
+          {info.boss > 0 && <b className="ir-boss-x"> · x{info.boss}</b>}
         </span>
       </div>
       {info.boss > 0 && phase === "playing" && (
@@ -216,9 +219,9 @@ export default function IceController({ send, subscribe }: ControllerProps) {
         </div>
       )}
 
-      <div className="pad-status">
+      <div className="pad-status ir-stage">
         {phase === "countdown" ? (
-          <div className="big">{text ?? ""}</div>
+          <div key={text} className="ir-count-big">{text ?? ""}</div>
         ) : (
           <div className="ir-main">
             {phase === "playing" && (
@@ -230,12 +233,13 @@ export default function IceController({ send, subscribe }: ControllerProps) {
               ref={trayRef}
               className="ir-tray"
               style={{
-                borderColor: `rgb(${Math.round(230 + 25 * danger)}, ${Math.round(236 - 150 * danger)}, ${Math.round(240 - 160 * danger)})`,
+                // cubes near the edge: the tray glows red
+                filter: danger > 0 ? `drop-shadow(0 0 ${Math.round(6 + 16 * danger)}px rgba(255, 70, 40, ${(0.4 + 0.6 * danger).toFixed(2)}))` : undefined,
                 transform: `perspective(600px) rotateX(${-viz.y * 14}deg) rotateY(${viz.x * 14}deg)`,
               }}
             >
               {Array.from({ length: cubes.length / 2 }, (_, i) => (
-                <i key={i} style={{ left: `${50 + cubes[i * 2] * 42}%`, top: `${50 + cubes[i * 2 + 1] * 42}%` }} />
+                <img key={i} className="ir-cube" src={artUrl("cube")} alt="" draggable={false} style={{ left: `${50 + cubes[i * 2] * 42}%`, top: `${50 + cubes[i * 2 + 1] * 42}%` }} />
               ))}
               {cubes.length === 0 && <span className="ir-empty">ถาดว่าง</span>}
               <em className="ir-dot" style={{ transform: `translate(${viz.x * 40}px, ${viz.y * 40}px)` }} />
@@ -251,6 +255,7 @@ export default function IceController({ send, subscribe }: ControllerProps) {
         )}
       </div>
 
+      <div className={`ir-controls ${mode}`}>
       {phase === "playing" && (
         <button className={`ir-item ${info.item ? "ready" : "empty"}`} onPointerDown={useItem} disabled={!info.item}>
           {info.item ? (
@@ -265,12 +270,14 @@ export default function IceController({ send, subscribe }: ControllerProps) {
       )}
 
       {mode === "touch" && (
-        <div ref={joyRef} className="joy" style={{ height: "24vh" }} onPointerDown={onJoy} onPointerMove={onJoy} onPointerUp={onJoy} onPointerCancel={onJoy}>
-          <i style={{ transform: `translate(${viz.x * 80}px, ${viz.y * 80}px)` }} />
+        <div ref={joyRef} className="joy ir-joy" onPointerDown={onJoy} onPointerMove={onJoy} onPointerUp={onJoy} onPointerCancel={onJoy}>
+          {/* knob travel follows the pad's size, so it never leaves a short joystick */}
+          <i style={{ left: `${50 + viz.x * 36}%`, top: `${50 + viz.y * 36}%` }} />
         </div>
       )}
+      </div>
 
-      <div className="row">
+      <div className="row ir-row">
         {mode === "tilt" && <button onClick={sensor.zero}>ตั้งศูนย์</button>}
         <button onClick={() => setMode((m) => (m === "tilt" ? "touch" : "tilt"))}>{mode === "tilt" ? "ใช้จอยสัมผัส" : "ใช้การเอียง"}</button>
       </div>
